@@ -143,6 +143,28 @@ export default async function ForumCommentsPage({
     errorMessage = String(e)
   }
 
+  type LatestAction = { action: string; actor_email: string | null; created_at: string | null }
+  const lastActionMap = new Map<string, LatestAction>()
+  let lastActionError = false
+
+  if (comments.length > 0) {
+    try {
+      const commentIds = comments.map((c) => c.id)
+      const { data: actions } = await supabase
+        .from('latest_comment_admin_action')
+        .select('comment_id,action,actor_email,created_at')
+        .in('comment_id', commentIds)
+
+      if (actions) {
+        for (const a of actions as unknown as Array<{ comment_id: string; action: string; actor_email: string | null; created_at: string | null }>) {
+          lastActionMap.set(a.comment_id, { action: a.action, actor_email: a.actor_email, created_at: a.created_at })
+        }
+      }
+    } catch {
+      lastActionError = true
+    }
+  }
+
   return (
     <>
       <div className="page-header" style={{ marginBottom: 0 }}>
@@ -251,7 +273,7 @@ export default async function ForumCommentsPage({
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 800 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 900 }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Comment</th>
@@ -260,6 +282,7 @@ export default async function ForumCommentsPage({
                   <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Body</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Deleted</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Actions</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Last Action</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
                     <Link href={buildHref(params, { sort: toggleSort(sort, 'created_asc', 'created_desc') })} style={{ color: 'inherit', textDecoration: 'none' }}>
                       {sortLabel(sort, 'created_asc', 'created_desc', 'Created')}
@@ -293,6 +316,34 @@ export default async function ForumCommentsPage({
                     </td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                       <ForumCommentActions commentId={c.id} isDeleted={c.is_deleted} compact />
+                    </td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', whiteSpace: 'nowrap', fontSize: 11 }}>
+                      {lastActionError ? (
+                        <span style={{ color: '#94a3b8' }}>N/A</span>
+                      ) : (() => {
+                        const la = lastActionMap.get(c.id)
+                        if (!la) return <span style={{ color: '#94a3b8' }}>—</span>
+                        return (
+                          <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
+                            <span style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              textTransform: 'capitalize',
+                              background: la.action === 'hide' ? '#fee2e2' : '#dcfce7',
+                              color: la.action === 'hide' ? '#991b1b' : '#166534',
+                              borderRadius: 4,
+                              padding: '1px 8px',
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {la.action}
+                            </span>
+                            {la.actor_email ? (
+                              <span style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>{la.actor_email.slice(0, 16)}</span>
+                            ) : null}
+                            <span style={{ fontSize: 9, fontFamily: 'monospace', color: '#94a3b8' }}>{formatTokyoDateTime(la.created_at)}</span>
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 11 }}>{formatTokyoDateTime(c.created_at)}</td>
                   </tr>
