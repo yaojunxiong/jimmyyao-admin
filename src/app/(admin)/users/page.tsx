@@ -5,11 +5,16 @@ import { formatTokyoDateTime } from '@/lib/date-format'
 
 export const dynamic = 'force-dynamic'
 
+const DEFAULT_PAGE_SIZE = 50
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const
+
 type SearchParams = {
   q?: string
   role?: string
   active?: string
   sort?: string
+  page?: string
+  pageSize?: string
 }
 
 type UserSummary = {
@@ -47,6 +52,19 @@ function vipStatus(vipUntil: string | null | undefined) {
   return new Date(vipUntil).getTime() >= Date.now() ? 'Active' : 'Expired'
 }
 
+function buildHref(params: SearchParams, updates: Partial<SearchParams>) {
+  const next = { ...params, ...updates }
+  const q = new URLSearchParams()
+  if (next.q) q.set('q', next.q)
+  if (next.role && next.role !== 'all') q.set('role', next.role)
+  if (next.active && next.active !== 'all') q.set('active', next.active)
+  if (next.sort && next.sort !== 'activity_desc') q.set('sort', next.sort)
+  if (next.page && next.page !== '1') q.set('page', next.page)
+  if (next.pageSize && next.pageSize !== String(DEFAULT_PAGE_SIZE)) q.set('pageSize', next.pageSize)
+  const query = q.toString()
+  return `/users${query ? `?${query}` : ''}`
+}
+
 export default async function UsersPage({
   searchParams,
 }: {
@@ -60,6 +78,11 @@ export default async function UsersPage({
   const role = ROLE_OPTIONS.includes(params.role as typeof ROLE_OPTIONS[number]) ? String(params.role) : 'all'
   const active = ACTIVE_OPTIONS.includes(params.active as typeof ACTIVE_OPTIONS[number]) ? String(params.active) : 'all'
   const sort = SORT_OPTIONS.includes(params.sort as typeof SORT_OPTIONS[number]) ? String(params.sort) : 'activity_desc'
+  const pageRaw = Number(params.page || '1')
+  const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1
+  const pageSizeRaw = Number(params.pageSize || String(DEFAULT_PAGE_SIZE))
+  const pageSize = PAGE_SIZE_OPTIONS.includes(pageSizeRaw as (typeof PAGE_SIZE_OPTIONS)[number]) ? pageSizeRaw : DEFAULT_PAGE_SIZE
+  const currentParams: SearchParams = { q, role, active, sort, page: String(page), pageSize: String(pageSize) }
 
   let users: UserSummary[] = []
   let errorMessage: string | null = null
@@ -105,6 +128,10 @@ export default async function UsersPage({
   const sevenDayActive = users.filter((u) => u.last_activity_at && new Date(u.last_activity_at) >= sevenDaysAgo).length
   const activeVipCount = users.filter((u) => vipStatus(u.vip_until) === 'Active').length
   const expiredVipCount = users.filter((u) => vipStatus(u.vip_until) === 'Expired').length
+  const totalCount = filtered.length
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+  const fromRow = (page - 1) * pageSize
+  const pageUsers = filtered.slice(fromRow, fromRow + pageSize)
 
   return (
     <>
@@ -121,6 +148,9 @@ export default async function UsersPage({
 
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 16 }}>
         <div className="stat-card"><div className="stat-card-label">Total Users</div><div className="stat-card-value">{users.length}</div></div>
+        <div className="stat-card"><div className="stat-card-label">Total Records</div><div className="stat-card-value">{totalCount}</div></div>
+        <div className="stat-card"><div className="stat-card-label">This Page</div><div className="stat-card-value">{pageUsers.length}</div></div>
+        <div className="stat-card"><div className="stat-card-label">Pages</div><div className="stat-card-value">{totalPages}</div></div>
         <div className="stat-card"><div className="stat-card-label">Admins</div><div className="stat-card-value">{adminCount}</div></div>
         <div className="stat-card"><div className="stat-card-label">Active VIP</div><div className="stat-card-value">{activeVipCount}</div></div>
         <div className="stat-card"><div className="stat-card-label">Expired VIP</div><div className="stat-card-value">{expiredVipCount}</div></div>
@@ -164,6 +194,12 @@ export default async function UsersPage({
               <option value="comments_desc">Forum comments: most</option>
             </select>
           </label>
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Page size</span>
+            <select name="pageSize" defaultValue={pageSize} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 10px', font: 'inherit' }}>
+              {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
+            </select>
+          </label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end', paddingBottom: 2 }}>
             <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 16px', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>Apply</button>
             <Link href="/users" style={{ background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 16px', fontWeight: 600, fontSize: 14, textDecoration: 'none', display: 'inline-block' }}>Clear</Link>
@@ -178,7 +214,7 @@ export default async function UsersPage({
       ) : null}
 
       <div className="placeholder-card" style={{ overflowX: 'auto', padding: 0 }}>
-        {filtered.length === 0 ? (
+        {pageUsers.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 24 }}>
             <p style={{ color: '#94a3b8', fontSize: 14 }}>No users found.</p>
           </div>
@@ -198,7 +234,7 @@ export default async function UsersPage({
                 </tr>
               </thead>
               <tbody>
-                {filtered.slice(0, 300).map((user) => (
+                {pageUsers.map((user) => (
                   <tr key={user.user_key} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '9px 12px', maxWidth: 260 }}>
                       <Link
@@ -235,6 +271,16 @@ export default async function UsersPage({
           </div>
         )}
       </div>
+
+      {!errorMessage ? (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', marginTop: 16 }}>
+          <div style={{ color: '#64748b', fontSize: 13 }}>Page {page} of {totalPages} | Total {totalCount}</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link href={buildHref(currentParams, { page: String(page - 1) })} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '8px 12px', color: page > 1 ? '#3b82f6' : '#94a3b8', pointerEvents: page > 1 ? 'auto' : 'none', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Previous</Link>
+            <Link href={buildHref(currentParams, { page: String(page + 1) })} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '8px 12px', color: page < totalPages ? '#3b82f6' : '#94a3b8', pointerEvents: page < totalPages ? 'auto' : 'none', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Next</Link>
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }
