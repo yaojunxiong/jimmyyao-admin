@@ -88,6 +88,39 @@ a {
   font-weight: 600;
 }
 
+.sidebar-group {
+  margin: 0;
+}
+
+.sidebar-subnav {
+  display: grid;
+  gap: 2px;
+  padding: 2px 0 6px 46px;
+}
+
+.sidebar-sublink {
+  display: block;
+  border-left: 2px solid #475569;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 12px;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+
+.sidebar-sublink:hover {
+  background: var(--color-sidebar-hover);
+  border-color: #64748b;
+  color: #f1f5f9;
+}
+
+.sidebar-sublink.active {
+  background: #172033;
+  border-color: #3b82f6;
+  color: #ffffff;
+  font-weight: 700;
+}
+
 .sidebar-link-icon {
   width: 20px;
   text-align: center;
