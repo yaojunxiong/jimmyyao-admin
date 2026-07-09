@@ -5,7 +5,8 @@ import { formatTokyoDateTime } from '@/lib/date-format'
 
 export const dynamic = 'force-dynamic'
 
-const PAGE_SIZE = 50
+const DEFAULT_PAGE_SIZE = 50
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const
 
 const VISITOR_SELECT = 'id,user_id,email,user_email,path,page_type,lesson_no,referrer,user_agent,ip,is_admin,workflow_skip_reason,workflow_instance_id,created_at'
 
@@ -17,6 +18,7 @@ type VisitorParams = {
   to?: string
   sort?: string
   page?: string
+  pageSize?: string
 }
 
 const USER_FILTERS = ['all', 'signed-in', 'anonymous', 'admin'] as const
@@ -59,6 +61,7 @@ function buildHref(params: VisitorParams, updates: Partial<VisitorParams>) {
   if (next.to) q.set('to', next.to)
   if (next.sort && next.sort !== 'created_desc') q.set('sort', next.sort)
   if (next.page && next.page !== '1') q.set('page', next.page)
+  if (next.pageSize && next.pageSize !== String(DEFAULT_PAGE_SIZE)) q.set('pageSize', next.pageSize)
   const query = q.toString()
   return `/visitors${query ? `?${query}` : ''}`
 }
@@ -89,6 +92,9 @@ export default async function VisitorsPage({
   const sort = SORT_OPTIONS.includes(params.sort as (typeof SORT_OPTIONS)[number]) ? String(params.sort) : 'created_desc'
   const pageRaw = Number(params.page || '1')
   const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1
+  const pageSizeRaw = Number(params.pageSize || String(DEFAULT_PAGE_SIZE))
+  const pageSize = PAGE_SIZE_OPTIONS.includes(pageSizeRaw as (typeof PAGE_SIZE_OPTIONS)[number]) ? pageSizeRaw : DEFAULT_PAGE_SIZE
+  const currentParams: VisitorParams = { q, user, range, from, to, sort, page: String(page), pageSize: String(pageSize) }
 
   const supabase = createClient(cookieStore)
 
@@ -127,8 +133,8 @@ export default async function VisitorsPage({
   const sortDir = sort.endsWith('_asc') ? true : false
   query = query.order(sortCol, { ascending: sortDir })
 
-  const fromRow = (page - 1) * PAGE_SIZE
-  const toRow = fromRow + PAGE_SIZE - 1
+  const fromRow = (page - 1) * pageSize
+  const toRow = fromRow + pageSize - 1
 
   let totalCount = 0
   let events: Array<{
@@ -161,7 +167,7 @@ export default async function VisitorsPage({
     errorMessage = String(e)
   }
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
 
   return (
     <>
@@ -234,6 +240,12 @@ export default async function VisitorsPage({
               <option value="path_desc">Path Z-A</option>
             </select>
           </label>
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Page size</span>
+            <select name="pageSize" defaultValue={pageSize} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 10px', font: 'inherit' }}>
+              {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
+            </select>
+          </label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end', paddingBottom: 2 }}>
             <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 16px', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>Apply</button>
             <Link href="/visitors" style={{ background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 16px', fontWeight: 600, fontSize: 14, textDecoration: 'none', display: 'inline-block' }}>Clear</Link>
@@ -261,18 +273,18 @@ export default async function VisitorsPage({
             <thead>
               <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
                 <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                  <Link href={buildHref(params, { sort: toggleSort(sort, 'created_asc', 'created_desc'), page: '1' })} style={{ color: 'inherit', textDecoration: 'none' }}>
+                  <Link href={buildHref(currentParams, { sort: toggleSort(sort, 'created_asc', 'created_desc'), page: '1' })} style={{ color: 'inherit', textDecoration: 'none' }}>
                     {sortLabel(sort, 'created_asc', 'created_desc', 'Time')}
                   </Link>
                 </th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                  <Link href={buildHref(params, { sort: toggleSort(sort, 'email_asc', 'email_desc'), page: '1' })} style={{ color: 'inherit', textDecoration: 'none' }}>
+                  <Link href={buildHref(currentParams, { sort: toggleSort(sort, 'email_asc', 'email_desc'), page: '1' })} style={{ color: 'inherit', textDecoration: 'none' }}>
                     {sortLabel(sort, 'email_asc', 'email_desc', 'User')}
                   </Link>
                 </th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Auth</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                  <Link href={buildHref(params, { sort: toggleSort(sort, 'path_asc', 'path_desc'), page: '1' })} style={{ color: 'inherit', textDecoration: 'none' }}>
+                  <Link href={buildHref(currentParams, { sort: toggleSort(sort, 'path_asc', 'path_desc'), page: '1' })} style={{ color: 'inherit', textDecoration: 'none' }}>
                     {sortLabel(sort, 'path_asc', 'path_desc', 'Page')}
                   </Link>
                 </th>
@@ -322,21 +334,13 @@ export default async function VisitorsPage({
         )}
       </div>
 
-      {totalPages > 1 ? (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginTop: 16 }}>
-          {page > 1 ? (
-            <Link href={buildHref(params, { page: String(page - 1) })} style={{ background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 16px', fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>
-              Prev
-            </Link>
-          ) : null}
-          <span style={{ padding: '8px 0', fontSize: 13, color: '#64748b' }}>
-            Page {page} / {totalPages}
-          </span>
-          {page < totalPages ? (
-            <Link href={buildHref(params, { page: String(page + 1) })} style={{ background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 16px', fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>
-              Next
-            </Link>
-          ) : null}
+      {!errorMessage ? (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', marginTop: 16 }}>
+          <div style={{ color: '#64748b', fontSize: 13 }}>Page {page} of {totalPages} | Total {totalCount}</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link href={buildHref(currentParams, { page: String(page - 1) })} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '8px 12px', color: page > 1 ? '#3b82f6' : '#94a3b8', pointerEvents: page > 1 ? 'auto' : 'none', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Previous</Link>
+            <Link href={buildHref(currentParams, { page: String(page + 1) })} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '8px 12px', color: page < totalPages ? '#3b82f6' : '#94a3b8', pointerEvents: page < totalPages ? 'auto' : 'none', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Next</Link>
+          </div>
         </div>
       ) : null}
     </>
