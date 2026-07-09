@@ -188,9 +188,38 @@ export default async function ForumPage({
 
   return (
     <>
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 0 }}>
         <h1>Forum Management</h1>
-        <p>Read-only forum post management. Browse, search, and filter all forum posts.</p>
+        <p>Read-only forum post and comment management.</p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '2px solid #e2e8f0' }}>
+        <Link
+          href="/forum"
+          style={{
+            padding: '10px 20px',
+            fontSize: 14,
+            fontWeight: 700,
+            color: '#3b82f6',
+            textDecoration: 'none',
+            borderBottom: '2px solid #3b82f6',
+            marginBottom: -2,
+          }}
+        >
+          Posts
+        </Link>
+        <Link
+          href="/forum/comments"
+          style={{
+            padding: '10px 20px',
+            fontSize: 14,
+            fontWeight: 600,
+            color: '#64748b',
+            textDecoration: 'none',
+          }}
+        >
+          Comments
+        </Link>
       </div>
 
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 16 }}>
