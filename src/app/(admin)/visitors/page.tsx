@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 50
 
-const VISITOR_SELECT = 'id,email,path,referrer,user_agent,ip,is_admin,workflow_skip_reason,workflow_instance_id,created_at'
+const VISITOR_SELECT = 'id,user_id,email,user_email,path,page_type,lesson_no,referrer,user_agent,ip,is_admin,workflow_skip_reason,workflow_instance_id,created_at'
 
 type VisitorParams = {
   q?: string
@@ -134,7 +134,11 @@ export default async function VisitorsPage({
   let events: Array<{
     id: string
     email: string | null
+    user_id: string | null
+    user_email: string | null
     path: string | null
+    page_type: string | null
+    lesson_no: number | null
     referrer: string | null
     user_agent: string | null
     ip: string | null
@@ -282,10 +286,12 @@ export default async function VisitorsPage({
               {events.map((event) => (
                 <tr key={event.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 11 }}>
-                    {formatTokyoDateTime(event.created_at)}
+                    <Link href={`/visitors/events/${event.id}`} style={{ color: '#3b82f6', fontWeight: 700 }}>
+                      {formatTokyoDateTime(event.created_at)}
+                    </Link>
                   </td>
                   <td style={{ padding: '8px 12px', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {event.email || <span style={{ color: '#94a3b8', fontSize: 12 }}>Anonymous</span>}
+                    {event.email || event.user_email || <span style={{ color: '#94a3b8', fontSize: 12 }}>Anonymous</span>}
                   </td>
                   <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
                     {event.is_admin ? (
@@ -301,7 +307,7 @@ export default async function VisitorsPage({
                   <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 11 }}>{shorten(event.ip, 15)}</td>
                   <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
                     {event.workflow_instance_id ? (
-                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#3b82f6' }} title={event.workflow_instance_id}>{shortId(event.workflow_instance_id)}</span>
+                      <Link href={`/workflows/${event.workflow_instance_id}`} style={{ fontFamily: 'monospace', fontSize: 11, color: '#3b82f6', fontWeight: 700 }} title={event.workflow_instance_id}>{shortId(event.workflow_instance_id)}</Link>
                     ) : event.workflow_skip_reason ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#f1f5f9', color: '#475569', fontSize: 10, fontWeight: 700, borderRadius: 999, padding: '1px 6px' }}>{event.workflow_skip_reason}</span>
                     ) : (

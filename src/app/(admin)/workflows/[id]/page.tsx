@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { formatTokyoDateTime } from '@/lib/date-format'
@@ -12,7 +13,7 @@ type EmailLog = { id: string; to_email: string; recipient_email: string | null; 
 type MembershipRequest = { id: string; user_id: string; current_level: string; requested_level: string; status: string; reason: string | null; created_at: string; updated_at: string }
 type VisitorEvent = { id: string; email: string | null; user_email: string | null; path: string; page_type: string | null; created_at: string }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return <div className="placeholder-card" style={{ overflowX: 'auto', padding: 0, marginBottom: 16 }}><h2 style={{ margin: 0, padding: '16px 16px 0', fontSize: 16, fontWeight: 700 }}>{title}</h2>{children}</div>
 }
 
@@ -107,7 +108,7 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
           </div>
         ) : visitorEvent ? (
           <div style={{ fontSize: 13 }}>
-            <div><strong>Visitor Event:</strong> <span style={{ fontFamily: 'monospace' }}>{visitorEvent.id}</span></div>
+            <div><strong>Visitor Event:</strong> <Link href={`/visitors/events/${visitorEvent.id}`} style={{ color: '#3b82f6', fontFamily: 'monospace', fontWeight: 700 }}>{visitorEvent.id}</Link></div>
             <div style={{ marginTop: 6 }}>{visitorEvent.email || visitorEvent.user_email || '-'} | {visitorEvent.path}</div>
             <div style={{ marginTop: 4, color: '#64748b' }}>{visitorEvent.page_type || '-'} | {formatTokyoDateTime(visitorEvent.created_at)}</div>
           </div>
