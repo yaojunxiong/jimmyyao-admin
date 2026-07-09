@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { formatTokyoDateTime } from '@/lib/date-format'
+import ForumPostActions from '@/components/forum-post-actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -274,9 +275,12 @@ export default async function ForumPostDetailPage({
         )}
       </div>
 
-      <p style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: '#94a3b8' }}>
-        Read-only view. Post management actions (approve, hide, delete) not yet available.
-      </p>
+      <ForumPostActions
+        postId={post!.id}
+        currentStatus={post!.status}
+        isDeleted={post!.is_deleted}
+        currentReviewNote={post!.review_note}
+      />
     </>
   )
 }
