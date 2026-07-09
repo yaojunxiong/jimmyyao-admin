@@ -6,6 +6,9 @@ import ForumCommentActions from '@/components/forum-comment-actions'
 
 export const dynamic = 'force-dynamic'
 
+const DEFAULT_PAGE_SIZE = 50
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const
+
 type ForumCommentRow = {
   id: string
   post_id: string
@@ -24,6 +27,8 @@ type SearchParams = {
   deleted?: string
   range?: string
   sort?: string
+  page?: string
+  pageSize?: string
 }
 
 const DELETED_OPTS = ['all', 'no', 'yes'] as const
@@ -46,6 +51,8 @@ function buildHref(params: SearchParams, updates: Partial<SearchParams>) {
   if (next.deleted && next.deleted !== 'all') q.set('deleted', next.deleted)
   if (next.range && next.range !== 'all') q.set('range', next.range)
   if (next.sort && next.sort !== 'created_desc') q.set('sort', next.sort)
+  if (next.page && next.page !== '1') q.set('page', next.page)
+  if (next.pageSize && next.pageSize !== String(DEFAULT_PAGE_SIZE)) q.set('pageSize', next.pageSize)
   const query = q.toString()
   return `/forum/comments${query ? `?${query}` : ''}`
 }
@@ -72,6 +79,11 @@ export default async function ForumCommentsPage({
   const deleted: string = DELETED_OPTS.includes(params.deleted as typeof DELETED_OPTS[number]) ? String(params.deleted) : 'all'
   const range: string = TIME_RANGES.includes(params.range as typeof TIME_RANGES[number]) ? String(params.range) : 'all'
   const sort: string = SORT_OPTIONS.includes(params.sort as typeof SORT_OPTIONS[number]) ? String(params.sort) : 'created_desc'
+  const pageRaw = Number(params.page || '1')
+  const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1
+  const pageSizeRaw = Number(params.pageSize || String(DEFAULT_PAGE_SIZE))
+  const pageSize = PAGE_SIZE_OPTIONS.includes(pageSizeRaw as (typeof PAGE_SIZE_OPTIONS)[number]) ? pageSizeRaw : DEFAULT_PAGE_SIZE
+  const currentParams: SearchParams = { q, deleted, range, sort, page: String(page), pageSize: String(pageSize) }
 
   const supabase = createClient(cookieStore)
 
@@ -104,11 +116,14 @@ export default async function ForumCommentsPage({
 
   let comments: ForumCommentRow[] = []
   let errorMessage: string | null = null
+  let filteredCount = 0
+  const fromRow = (page - 1) * pageSize
+  const toRow = fromRow + pageSize - 1
 
   try {
     let query = supabase
       .from('forum_comments')
-      .select('id,post_id,author_user_id,author_email,body,parent_comment_id,is_deleted,created_at,updated_at,forum_posts(id,title)')
+      .select('id,post_id,author_user_id,author_email,body,parent_comment_id,is_deleted,created_at,updated_at,forum_posts(id,title)', { count: 'exact' })
 
     if (deleted === 'no') {
       query = query.eq('is_deleted', false)
@@ -132,16 +147,19 @@ export default async function ForumCommentsPage({
       query = query.order('created_at', { ascending: false })
     }
 
-    const { data, error } = await query.limit(200)
+    const { data, error, count } = await query.range(fromRow, toRow)
 
     if (error) {
       errorMessage = error.message
     } else {
       comments = (data || []) as unknown as ForumCommentRow[]
+      filteredCount = count ?? 0
     }
   } catch (e) {
     errorMessage = String(e)
   }
+
+  const totalPages = Math.max(1, Math.ceil(filteredCount / pageSize))
 
   type LatestAction = { action: string; actor_email: string | null; created_at: string | null }
   const lastActionMap = new Map<string, LatestAction>()
@@ -215,8 +233,16 @@ export default async function ForumCommentsPage({
           <div className="stat-card-value">{deletedCount}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-card-label">Filtered</div>
+          <div className="stat-card-label">Total Records</div>
+          <div className="stat-card-value">{filteredCount}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card-label">This Page</div>
           <div className="stat-card-value">{comments.length}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card-label">Pages</div>
+          <div className="stat-card-value">{totalPages}</div>
         </div>
       </div>
 
@@ -249,6 +275,12 @@ export default async function ForumCommentsPage({
             <select name="sort" defaultValue={sort} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 10px', font: 'inherit' }}>
               <option value="created_desc">Created: newest</option>
               <option value="created_asc">Created: oldest</option>
+            </select>
+          </label>
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Page size</span>
+            <select name="pageSize" defaultValue={pageSize} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 10px', font: 'inherit' }}>
+              {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
             </select>
           </label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end', paddingBottom: 2 }}>
@@ -284,7 +316,7 @@ export default async function ForumCommentsPage({
                   <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Actions</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Last Action</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                    <Link href={buildHref(params, { sort: toggleSort(sort, 'created_asc', 'created_desc') })} style={{ color: 'inherit', textDecoration: 'none' }}>
+                    <Link href={buildHref(currentParams, { sort: toggleSort(sort, 'created_asc', 'created_desc'), page: '1' })} style={{ color: 'inherit', textDecoration: 'none' }}>
                       {sortLabel(sort, 'created_asc', 'created_desc', 'Created')}
                     </Link>
                   </th>
@@ -353,6 +385,16 @@ export default async function ForumCommentsPage({
           </div>
         )}
       </div>
+
+      {!errorMessage ? (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', marginTop: 16 }}>
+          <div style={{ color: '#64748b', fontSize: 13 }}>Page {page} of {totalPages} | Total {filteredCount}</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link href={buildHref(currentParams, { page: String(page - 1) })} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '8px 12px', color: page > 1 ? '#3b82f6' : '#94a3b8', pointerEvents: page > 1 ? 'auto' : 'none', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Previous</Link>
+            <Link href={buildHref(currentParams, { page: String(page + 1) })} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '8px 12px', color: page < totalPages ? '#3b82f6' : '#94a3b8', pointerEvents: page < totalPages ? 'auto' : 'none', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Next</Link>
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }
