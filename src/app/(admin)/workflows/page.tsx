@@ -5,6 +5,10 @@ import { formatTokyoDateTime } from '@/lib/date-format'
 
 export const dynamic = 'force-dynamic'
 
+const DEFAULT_PAGE_SIZE = 50
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const
+const STATUS_FILTERS = ['all', 'pending', 'running', 'completed', 'approved', 'rejected'] as const
+
 const DEFINITIONS = [
   { key: 'study_visitor', name: 'Study Visitor Confirmation' },
   { key: 'logged_in_first_visit', name: 'First Visit Confirmation' },
@@ -22,6 +26,14 @@ type WorkflowInstanceRow = {
   updated_at: string | null
 }
 
+type WorkflowSearchParams = {
+  definition_key?: string
+  status?: string
+  instanceId?: string
+  page?: string
+  pageSize?: string
+}
+
 function statusBadge(status: string) {
   if (status === 'approved' || status === 'completed')
     return { color: '#166534', background: '#dcfce7', border: '1px solid #86efac', label: 'Approved' }
@@ -35,17 +47,36 @@ function shortId(value: string | null | undefined) {
   return value.length > 8 ? value.slice(0, 8) + '...' : value
 }
 
+function buildHref(params: WorkflowSearchParams, updates: Partial<WorkflowSearchParams>) {
+  const next = { ...params, ...updates }
+  const q = new URLSearchParams()
+  if (next.definition_key) q.set('definition_key', next.definition_key)
+  if (next.status && next.status !== 'all') q.set('status', next.status)
+  if (next.instanceId) q.set('instanceId', next.instanceId)
+  if (next.page && next.page !== '1') q.set('page', next.page)
+  if (next.pageSize && next.pageSize !== String(DEFAULT_PAGE_SIZE)) q.set('pageSize', next.pageSize)
+  const query = q.toString()
+  return `/workflows${query ? `?${query}` : ''}`
+}
+
 export default async function WorkflowsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ definition_key?: string; instanceId?: string }>
+  searchParams: Promise<WorkflowSearchParams>
 }) {
   const resolvedParams = await searchParams
   const definitionKey = resolvedParams.definition_key
+  const statusParam = resolvedParams.status
   const instanceIdFilter = resolvedParams.instanceId
+  const pageRaw = Number(resolvedParams.page || '1')
+  const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1
+  const pageSizeRaw = Number(resolvedParams.pageSize || String(DEFAULT_PAGE_SIZE))
+  const pageSize = PAGE_SIZE_OPTIONS.includes(pageSizeRaw as (typeof PAGE_SIZE_OPTIONS)[number]) ? pageSizeRaw : DEFAULT_PAGE_SIZE
   const cookieStore = await cookies()
 
   const validKey = definitionKey && DEFINITIONS.some(d => d.key === definitionKey) ? definitionKey : null
+  const statusFilter = STATUS_FILTERS.includes(statusParam as (typeof STATUS_FILTERS)[number]) ? String(statusParam) : 'all'
+  const currentParams: WorkflowSearchParams = { definition_key: validKey || undefined, status: statusFilter, instanceId: instanceIdFilter, page: String(page), pageSize: String(pageSize) }
 
   const supabase = createClient(cookieStore)
 
@@ -53,10 +84,13 @@ export default async function WorkflowsPage({
   let studyVisitorPending = 0
   let loggedInPending = 0
   let membershipPending = 0
+  let totalCount = 0
   let instances: WorkflowInstanceRow[] = []
   let errorMessage = ''
   const emailMap = new Map<string, string>()
   const emailStatusMap = new Map<string, { status: string; id: string }>()
+  const fromRow = (page - 1) * pageSize
+  const toRow = fromRow + pageSize - 1
 
   try {
     const { count: total } = await supabase
@@ -82,21 +116,25 @@ export default async function WorkflowsPage({
   try {
     let query = supabase
       .from('workflow_instances')
-      .select('id,workflow_version_id,reference_type,reference_id,status,current_node_key,created_at,updated_at')
+      .select('id,workflow_version_id,reference_type,reference_id,status,current_node_key,created_at,updated_at', { count: 'exact' })
       .order('created_at', { ascending: false })
-      .limit(100)
 
     if (validKey) {
       query = query.eq('reference_type', validKey)
+    }
+
+    if (statusFilter !== 'all') {
+      query = query.eq('status', statusFilter)
     }
 
     if (instanceIdFilter) {
       query = query.eq('id', instanceIdFilter)
     }
 
-    const { data, error } = await query
+    const { data, error, count } = await query.range(fromRow, toRow)
     if (error) errorMessage = error.message
     instances = (data || []) as WorkflowInstanceRow[]
+    totalCount = count ?? 0
 
     const instanceIds = instances.map(i => i.id)
 
@@ -132,7 +170,11 @@ export default async function WorkflowsPage({
         }
       }
     }
-  } catch {}
+  } catch (e) {
+    errorMessage = String(e)
+  }
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
 
   return (
     <>
@@ -142,6 +184,18 @@ export default async function WorkflowsPage({
       </div>
 
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', marginBottom: 16 }}>
+        <div className="stat-card">
+          <div className="stat-card-label">Total Records</div>
+          <div className="stat-card-value">{totalCount}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card-label">This Page</div>
+          <div className="stat-card-value">{instances.length}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card-label">Pages</div>
+          <div className="stat-card-value">{totalPages}</div>
+        </div>
         <div className="stat-card">
           <div className="stat-card-label">All Pending</div>
           <div className="stat-card-value">{totalPending}</div>
@@ -171,8 +225,25 @@ export default async function WorkflowsPage({
               ))}
             </select>
           </label>
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Status</span>
+            <select name="status" defaultValue={statusFilter} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 10px', font: 'inherit' }}>
+              <option value="all">All</option>
+              <option value="pending">pending</option>
+              <option value="running">running</option>
+              <option value="completed">completed</option>
+              <option value="approved">approved</option>
+              <option value="rejected">rejected</option>
+            </select>
+          </label>
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Page size</span>
+            <select name="pageSize" defaultValue={pageSize} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 10px', font: 'inherit' }}>
+              {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
+            </select>
+          </label>
           <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 16px', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>Filter</button>
-          {definitionKey ? (
+          {definitionKey || statusFilter !== 'all' ? (
             <Link href="/workflows" style={{ background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 16px', fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>Clear</Link>
           ) : null}
         </form>
@@ -238,6 +309,16 @@ export default async function WorkflowsPage({
           </table>
         )}
       </div>
+
+      {!errorMessage ? (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', marginTop: 16 }}>
+          <div style={{ color: '#64748b', fontSize: 13 }}>Page {page} of {totalPages} | Total {totalCount}</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link href={buildHref(currentParams, { page: String(page - 1) })} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '8px 12px', color: page > 1 ? '#3b82f6' : '#94a3b8', pointerEvents: page > 1 ? 'auto' : 'none', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Previous</Link>
+            <Link href={buildHref(currentParams, { page: String(page + 1) })} style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: '8px 12px', color: page < totalPages ? '#3b82f6' : '#94a3b8', pointerEvents: page < totalPages ? 'auto' : 'none', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Next</Link>
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }
