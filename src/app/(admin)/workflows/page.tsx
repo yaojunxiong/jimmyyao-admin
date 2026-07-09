@@ -203,7 +203,9 @@ export default async function WorkflowsPage({
                 const email = emailMap.get(instance.id) || ''
                 return (
                   <tr key={instance.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 11 }} title={instance.id}>{shortId(instance.id)}</td>
+                    <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 11 }} title={instance.id}>
+                      <Link href={`/workflows/${instance.id}`} style={{ color: '#3b82f6', fontWeight: 700 }}>{shortId(instance.id)}</Link>
+                    </td>
                     <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 11 }}>{instance.reference_type}</td>
                     <td style={{ padding: '8px 12px' }}>{DEFINITIONS.find(d => d.key === instance.reference_type)?.name || '-'}</td>
                     <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 11 }} title={instance.reference_id}>{shortId(instance.reference_id)}</td>
