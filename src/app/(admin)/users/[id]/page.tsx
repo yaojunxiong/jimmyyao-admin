@@ -67,6 +67,35 @@ type Attempt = {
   created_at: string
 }
 
+type Membership = {
+  role?: string | null
+  vip_until?: string | null
+  note?: string | null
+  role_created_at?: string | null
+  role_updated_at?: string | null
+  membership_level?: string | null
+  membership_created_at?: string | null
+  membership_updated_at?: string | null
+}
+
+type MembershipRequest = {
+  id: string
+  current_level: string
+  requested_level: string
+  reason: string | null
+  status: string
+  reviewed_at: string | null
+  review_note: string | null
+  reject_reason: string | null
+  workflow_instance_id: string | null
+  workflow_status: string | null
+  workflow_current_node_key: string | null
+  workflow_created_at: string | null
+  workflow_updated_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 type DetailResult = {
   success: boolean
   error?: string
@@ -76,6 +105,18 @@ type DetailResult = {
   forum_comments?: ForumComment[]
   lesson_progress?: LessonProgress[]
   attempts?: Attempt[]
+  membership?: Membership
+  membership_requests?: MembershipRequest[]
+}
+
+function vipStatus(vipUntil: string | null | undefined) {
+  if (!vipUntil) return 'None'
+  return new Date(vipUntil).getTime() >= Date.now() ? 'Active' : 'Expired'
+}
+
+function daysUntil(value: string | null | undefined) {
+  if (!value) return null
+  return Math.ceil((new Date(value).getTime() - Date.now()) / (24 * 60 * 60 * 1000))
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -138,6 +179,10 @@ export default async function UserDetailPage({
   const comments = detail.forum_comments || []
   const progress = detail.lesson_progress || []
   const attempts = detail.attempts || []
+  const membership = detail.membership || {}
+  const membershipRequests = detail.membership_requests || []
+  const status = vipStatus(summary.vip_until || membership.vip_until)
+  const days = daysUntil(summary.vip_until || membership.vip_until)
 
   return (
     <>
@@ -168,6 +213,43 @@ export default async function UserDetailPage({
           <div style={{ wordBreak: 'break-all' }}><strong>User Key:</strong> {summary.user_key}</div>
           <div style={{ wordBreak: 'break-all' }}><strong>Avatar:</strong> {summary.avatar_url || '-'}</div>
         </div>
+      </div>
+
+      <div className="placeholder-card" style={{ marginBottom: 16 }}>
+        <h2 style={{ margin: '0 0 12px', fontSize: 16 }}>Membership / VIP</h2>
+        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', fontSize: 13, marginBottom: 12 }}>
+          <div><strong>Current Role:</strong> {membership.role || summary.role || '-'}</div>
+          <div><strong>Membership Level:</strong> {membership.membership_level || '-'}</div>
+          <div><strong>VIP Status:</strong> <span style={{ fontSize: 11, background: status === 'Active' ? '#dcfce7' : status === 'Expired' ? '#fee2e2' : '#f1f5f9', color: status === 'Active' ? '#166534' : status === 'Expired' ? '#991b1b' : '#64748b', borderRadius: 999, padding: '2px 8px', fontWeight: 700 }}>{status}</span></div>
+          <div><strong>VIP Until:</strong> {formatTokyoDateTime(summary.vip_until || membership.vip_until)}</div>
+          <div><strong>Days Remaining:</strong> {days === null ? '-' : days}</div>
+          <div><strong>Role Updated:</strong> {formatTokyoDateTime(membership.role_updated_at)}</div>
+          <div><strong>Membership Updated:</strong> {formatTokyoDateTime(membership.membership_updated_at)}</div>
+          <div style={{ wordBreak: 'break-word' }}><strong>Note:</strong> {membership.note || '-'}</div>
+        </div>
+
+        <h3 style={{ margin: '14px 0 8px', fontSize: 14 }}>Recent Membership Requests</h3>
+        {membershipRequests.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 13, color: '#94a3b8' }}>No membership requests.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 820, borderCollapse: 'collapse', fontSize: 12 }}>
+              <tbody>
+                {membershipRequests.map((r) => (
+                  <tr key={r.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: 10, fontWeight: 700 }}>{r.current_level} → {r.requested_level}</td>
+                    <td style={{ padding: 10 }}>{r.status}</td>
+                    <td style={{ padding: 10, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reason || r.review_note || r.reject_reason || '-'}</td>
+                    <td style={{ padding: 10, fontFamily: 'monospace' }}>{r.workflow_instance_id ? `${r.workflow_instance_id.slice(0, 8)}...` : '-'}</td>
+                    <td style={{ padding: 10 }}>{r.workflow_status || '-'}</td>
+                    <td style={{ padding: 10 }}>{r.workflow_current_node_key || '-'}</td>
+                    <td style={{ padding: 10, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{formatTokyoDateTime(r.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <Section title="Recent Visitor Events">

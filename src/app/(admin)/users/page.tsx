@@ -42,6 +42,11 @@ function activityStart(active: string) {
   return null
 }
 
+function vipStatus(vipUntil: string | null | undefined) {
+  if (!vipUntil) return 'None'
+  return new Date(vipUntil).getTime() >= Date.now() ? 'Active' : 'Expired'
+}
+
 export default async function UsersPage({
   searchParams,
 }: {
@@ -98,6 +103,8 @@ export default async function UsersPage({
   const adminCount = users.filter((u) => u.is_admin).length
   const todayActive = users.filter((u) => u.last_activity_at && new Date(u.last_activity_at) >= todayStart).length
   const sevenDayActive = users.filter((u) => u.last_activity_at && new Date(u.last_activity_at) >= sevenDaysAgo).length
+  const activeVipCount = users.filter((u) => vipStatus(u.vip_until) === 'Active').length
+  const expiredVipCount = users.filter((u) => vipStatus(u.vip_until) === 'Expired').length
 
   return (
     <>
@@ -109,6 +116,8 @@ export default async function UsersPage({
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 16 }}>
         <div className="stat-card"><div className="stat-card-label">Total Users</div><div className="stat-card-value">{users.length}</div></div>
         <div className="stat-card"><div className="stat-card-label">Admins</div><div className="stat-card-value">{adminCount}</div></div>
+        <div className="stat-card"><div className="stat-card-label">Active VIP</div><div className="stat-card-value">{activeVipCount}</div></div>
+        <div className="stat-card"><div className="stat-card-label">Expired VIP</div><div className="stat-card-value">{expiredVipCount}</div></div>
         <div className="stat-card"><div className="stat-card-label">Today Active</div><div className="stat-card-value">{todayActive}</div></div>
         <div className="stat-card"><div className="stat-card-label">7d Active</div><div className="stat-card-value">{sevenDayActive}</div></div>
       </div>
@@ -169,11 +178,12 @@ export default async function UsersPage({
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 960 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 1040 }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569' }}>User</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569' }}>Role</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569' }}>VIP</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569' }}>Last Activity</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#475569' }}>Forum</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#475569' }}>Visitor</th>
@@ -195,6 +205,17 @@ export default async function UsersPage({
                     </td>
                     <td style={{ padding: '9px 12px' }}>
                       <span style={{ fontSize: 11, background: user.is_admin ? '#dbeafe' : '#f1f5f9', color: user.is_admin ? '#1d4ed8' : '#475569', borderRadius: 999, padding: '2px 8px', fontWeight: 700 }}>{user.role}</span>
+                    </td>
+                    <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+                      {(() => {
+                        const status = vipStatus(user.vip_until)
+                        return (
+                          <div>
+                            <span style={{ fontSize: 11, background: status === 'Active' ? '#dcfce7' : status === 'Expired' ? '#fee2e2' : '#f1f5f9', color: status === 'Active' ? '#166534' : status === 'Expired' ? '#991b1b' : '#64748b', borderRadius: 999, padding: '2px 8px', fontWeight: 700 }}>{status}</span>
+                            {user.vip_until ? <div style={{ marginTop: 3, fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>{formatTokyoDateTime(user.vip_until)}</div> : null}
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td style={{ padding: '9px 12px', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 11 }}>{formatTokyoDateTime(user.last_activity_at)}</td>
                     <td style={{ padding: '9px 12px', textAlign: 'center', fontFamily: 'monospace', fontSize: 12 }}>{user.forum_post_count} / {user.forum_comment_count}</td>
