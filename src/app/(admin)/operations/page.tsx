@@ -255,7 +255,7 @@ export default async function OperationsPage() {
 
         <QueueSection title="Recent Errors / Failed Emails" count={failedEmails.data.length} href="/logs" error={failedEmails.error} empty="No recent failed email logs.">
           {failedEmails.data.map((email) => (
-            <QueueItem key={email.id} href={email.workflow_instance_id ? `/workflows/${email.workflow_instance_id}` : undefined} title={email.recipient_email || email.to_email || '-'} meta={`${email.template_key || email.notification_type || '-'} | ${shortText(email.subject, 64)}`} details={shortText(email.error_message, 140)} time={email.failed_at || email.created_at} />
+            <QueueItem key={email.id} href={`/logs/email/${email.id}`} title={email.recipient_email || email.to_email || '-'} meta={`${email.template_key || email.notification_type || '-'} | ${shortText(email.subject, 64)}`} details={email.workflow_instance_id ? <>Workflow: <span style={{ fontFamily: 'monospace' }}>{shortId(email.workflow_instance_id)}</span> | {shortText(email.error_message, 120)}</> : shortText(email.error_message, 140)} time={email.failed_at || email.created_at} />
           ))}
         </QueueSection>
 
