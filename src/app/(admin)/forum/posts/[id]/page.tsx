@@ -63,6 +63,17 @@ type ForumAdminAction = {
   created_at: string | null
 }
 
+type ForumCommentAdminAction = {
+  id: string
+  comment_id: string
+  action: string
+  previous_is_deleted: boolean | null
+  next_is_deleted: boolean | null
+  actor_email: string | null
+  created_at: string | null
+  forum_comments: { body: string | null } | null
+}
+
 function statusLabel(status: string | null | undefined) {
   if (status === 'approved') return 'Approved'
   if (status === 'rejected') return 'Rejected'
@@ -156,6 +167,28 @@ export default async function ForumPostDetailPage({
       }
     } catch {
       adminActionsError = 'Failed to load admin action history'
+    }
+  }
+
+  let commentAdminActions: ForumCommentAdminAction[] = []
+  let commentAdminActionsError: string | null = null
+
+  if (post && !postError) {
+    try {
+      const { data, error } = await supabase
+        .from('forum_comment_admin_actions')
+        .select('id,comment_id,action,previous_is_deleted,next_is_deleted,actor_email,created_at,forum_comments!comment_id(body)')
+        .eq('post_id', id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      if (error) {
+        commentAdminActionsError = error.message
+      } else {
+        commentAdminActions = (data || []) as unknown as ForumCommentAdminAction[]
+      }
+    } catch {
+      commentAdminActionsError = 'Failed to load comment action history'
     }
   }
 
@@ -348,6 +381,46 @@ export default async function ForumPostDetailPage({
                 </div>
                 {a.review_note ? (
                   <p style={{ margin: '4px 0 0', fontSize: 12, color: '#78350f' }}>{a.review_note}</p>
+                ) : null}
+                {a.actor_email ? (
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94a3b8' }}>by {a.actor_email}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="placeholder-card" style={{ overflowX: 'auto', padding: 0 }}>
+        <h2 style={{ margin: 0, padding: '16px 16px 0', fontSize: 16, fontWeight: 700 }}>
+          Comment Action History
+        </h2>
+
+        {commentAdminActionsError ? (
+          <p style={{ padding: '16px 16px', fontSize: 13, color: '#94a3b8' }}>
+            Comment action history is not available yet.
+          </p>
+        ) : commentAdminActions.length === 0 ? (
+          <p style={{ padding: '16px 16px', fontSize: 13, color: '#94a3b8' }}>
+            No comment actions recorded for this post.
+          </p>
+        ) : (
+          <div style={{ padding: '0 16px', marginTop: 12 }}>
+            {commentAdminActions.map((a) => (
+              <div key={a.id} style={{ borderBottom: '1px solid #f1f5f9', padding: '12px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'capitalize' }}>{a.action}</span>
+                  <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#94a3b8' }}>
+                    {formatTokyoDateTime(a.created_at)}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>
+                  comment: {a.comment_id.slice(0, 8)}... | deleted: {a.previous_is_deleted ?? '-'} → {a.next_is_deleted ?? '-'}
+                </div>
+                {a.forum_comments?.body ? (
+                  <p style={{ margin: '4px 0 0', fontSize: 12, color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {a.forum_comments.body}
+                  </p>
                 ) : null}
                 {a.actor_email ? (
                   <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94a3b8' }}>by {a.actor_email}</p>
