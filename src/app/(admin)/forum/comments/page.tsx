@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { formatTokyoDateTime } from '@/lib/date-format'
+import ForumCommentActions from '@/components/forum-comment-actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -250,7 +251,7 @@ export default async function ForumCommentsPage({
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 700 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 800 }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Comment</th>
@@ -258,6 +259,7 @@ export default async function ForumCommentsPage({
                   <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Author</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Body</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Deleted</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Actions</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
                     <Link href={buildHref(params, { sort: toggleSort(sort, 'created_asc', 'created_desc') })} style={{ color: 'inherit', textDecoration: 'none' }}>
                       {sortLabel(sort, 'created_asc', 'created_desc', 'Created')}
@@ -288,6 +290,9 @@ export default async function ForumCommentsPage({
                       ) : (
                         <span style={{ fontSize: 11, color: '#94a3b8' }}>—</span>
                       )}
+                    </td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <ForumCommentActions commentId={c.id} isDeleted={c.is_deleted} compact />
                     </td>
                     <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 11 }}>{formatTokyoDateTime(c.created_at)}</td>
                   </tr>

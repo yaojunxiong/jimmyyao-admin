@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { formatTokyoDateTime } from '@/lib/date-format'
 import ForumPostActions from '@/components/forum-post-actions'
+import ForumCommentActions from '@/components/forum-comment-actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -307,6 +308,9 @@ export default async function ForumPostDetailPage({
                 {comment.status && comment.status !== 'approved' ? (
                   <span style={{ display: 'inline-block', marginTop: 4, fontSize: 10, background: '#fef3c7', color: '#92400e', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>{statusLabel(comment.status)}</span>
                 ) : null}
+                <div style={{ marginTop: 6 }}>
+                  <ForumCommentActions commentId={comment.id} isDeleted={comment.is_deleted ?? false} compact />
+                </div>
               </div>
             ))}
           </div>
