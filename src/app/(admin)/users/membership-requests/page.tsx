@@ -189,7 +189,12 @@ export default async function MembershipRequestsPage({
                 return (
                   <tr key={r.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: 10, maxWidth: 220 }}><Link href={`/users/${encodeURIComponent(`id:${r.user_id}`)}`} style={{ color: '#3b82f6', fontWeight: 700, wordBreak: 'break-word' }}>{email || r.user_id}</Link><div style={{ fontSize: 11, color: '#64748b', wordBreak: 'break-word' }}>{profile?.display_name || r.user_id}</div></td>
-                    <td style={{ padding: 10, whiteSpace: 'nowrap' }}>{r.current_level} → <strong>{r.requested_level}</strong></td>
+                    <td style={{ padding: 10, whiteSpace: 'nowrap' }}>
+                      <Link href={`/users/membership-requests/${r.id}`} style={{ color: '#3b82f6', fontWeight: 700 }}>
+                        {r.current_level} → {r.requested_level}
+                      </Link>
+                      <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{r.id.slice(0, 8)}...</div>
+                    </td>
                     <td style={{ padding: 10 }}><span style={{ fontSize: 11, background: '#f1f5f9', borderRadius: 999, padding: '2px 8px', fontWeight: 700 }}>{r.status}</span></td>
                     <td style={{ padding: 10, whiteSpace: 'nowrap' }}>{wf?.status || '-'}<div style={{ fontSize: 11, color: '#64748b' }}>{wf?.current_node_key || '-'}</div></td>
                     <td style={{ padding: 10, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reason || r.review_note || r.reject_reason || '-'}</td>
