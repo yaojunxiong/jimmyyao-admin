@@ -37,90 +37,37 @@ export async function POST(
 
   const supabase = createClient(cookieStore)
 
-  // Read current post state before update
-  const { data: currentPost, error: readError } = await supabase
-    .from('forum_posts')
-    .select('status, is_deleted')
-    .eq('id', id)
-    .single()
-
-  if (readError) {
-    return Response.json({ ok: false, error: `Failed to read current post state: ${readError.message}` }, { status: 500 })
-  }
-
-  const now = new Date().toISOString()
-
-  const baseUpdate: Record<string, string | boolean | null> = {
-    updated_at: now,
-  }
-
-  switch (action) {
-    case 'approve':
-      Object.assign(baseUpdate, {
-        status: 'approved',
-        reviewed_by: adminCheck.userId,
-        reviewed_at: now,
-        review_note: review_note || null,
-        is_deleted: false,
-      })
-      break
-
-    case 'reject':
-      Object.assign(baseUpdate, {
-        status: 'rejected',
-        reviewed_by: adminCheck.userId,
-        reviewed_at: now,
-        review_note: review_note || null,
-      })
-      break
-
-    case 'hide':
-      Object.assign(baseUpdate, {
-        status: 'hidden',
-        reviewed_by: adminCheck.userId,
-        reviewed_at: now,
-        review_note: review_note || null,
-      })
-      break
-
-    case 'restore':
-      Object.assign(baseUpdate, {
-        is_deleted: false,
-      })
-      break
-  }
-
   try {
-    const { error } = await supabase
-      .from('forum_posts')
-      .update(baseUpdate)
-      .eq('id', id)
+    const { data, error } = await supabase.rpc('admin_update_forum_post_status', {
+      p_post_id: id,
+      p_action: action,
+      p_review_note: review_note || null,
+    })
 
     if (error) {
       return Response.json({ ok: false, error: error.message }, { status: 500 })
     }
 
-    // Insert audit log
-    const nextStatus = baseUpdate.status as string | undefined
-    const nextIsDeleted = baseUpdate.is_deleted as boolean | undefined
+    const result = data as {
+      success: boolean
+      error?: string
+      post_id?: string
+      action?: string
+      new_status?: string
+      new_is_deleted?: boolean
+    }
 
-    const { error: auditError } = await supabase
-      .from('forum_admin_actions')
-      .insert({
-        post_id: id,
-        action,
-        previous_status: currentPost.status,
-        next_status: nextStatus ?? null,
-        previous_is_deleted: currentPost.is_deleted,
-        next_is_deleted: nextIsDeleted ?? null,
-        review_note: review_note || null,
-        actor_user_id: adminCheck.userId,
-        actor_email: adminCheck.userEmail,
-      })
-
-    if (auditError) {
-      console.error('Post updated but audit log insert failed:', auditError)
-      return Response.json({ ok: true, warning: `Post updated successfully, but audit log could not be recorded: ${auditError.message}` })
+    if (!result.success) {
+      if (result.error === 'not_authenticated') {
+        return Response.json({ ok: false, error: 'Not authenticated' }, { status: 401 })
+      }
+      if (result.error === 'not_authorized') {
+        return Response.json({ ok: false, error: 'Not authorized' }, { status: 403 })
+      }
+      if (result.error === 'post_not_found') {
+        return Response.json({ ok: false, error: 'Post not found' }, { status: 404 })
+      }
+      return Response.json({ ok: false, error: result.error || 'Unknown error' }, { status: 500 })
     }
 
     revalidatePath('/forum')
