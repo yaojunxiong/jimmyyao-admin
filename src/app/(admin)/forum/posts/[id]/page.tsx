@@ -8,6 +8,10 @@ export const dynamic = 'force-dynamic'
 
 const FORUM_ORIGIN = 'https://forum.jimmyyao.com'
 
+function forumPostUrl(id: string) {
+  return `${FORUM_ORIGIN}/posts/${id.replace(/-/g, '')}`
+}
+
 const CATEGORIES: Record<string, string> = {
   vocabulary: 'Vocabulary',
   wrong_question: 'Wrong Question',
@@ -44,6 +48,18 @@ type ForumComment = {
   is_deleted: boolean | null
   created_at: string | null
   updated_at: string | null
+}
+
+type ForumAdminAction = {
+  id: string
+  action: string
+  previous_status: string | null
+  next_status: string | null
+  previous_is_deleted: boolean | null
+  next_is_deleted: boolean | null
+  review_note: string | null
+  actor_email: string | null
+  created_at: string | null
 }
 
 function statusLabel(status: string | null | undefined) {
@@ -117,6 +133,28 @@ export default async function ForumPostDetailPage({
       commentTableChecked = true
     } catch {
       commentTableChecked = false
+    }
+  }
+
+  let adminActions: ForumAdminAction[] = []
+  let adminActionsError: string | null = null
+
+  if (post && !postError) {
+    try {
+      const { data, error } = await supabase
+        .from('forum_admin_actions')
+        .select('id,action,previous_status,next_status,previous_is_deleted,next_is_deleted,review_note,actor_email,created_at')
+        .eq('post_id', id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      if (error) {
+        adminActionsError = error.message
+      } else {
+        adminActions = (data || []) as ForumAdminAction[]
+      }
+    } catch {
+      adminActionsError = 'Failed to load admin action history'
     }
   }
 
@@ -204,7 +242,7 @@ export default async function ForumPostDetailPage({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Content</h2>
           <a
-            href={`${FORUM_ORIGIN}/posts/${post!.id}`}
+            href={forumPostUrl(post!.id)}
             target="_blank"
             rel="noopener noreferrer"
             style={{ fontSize: 13, color: '#3b82f6', textDecoration: 'none' }}
@@ -268,6 +306,47 @@ export default async function ForumPostDetailPage({
                 </p>
                 {comment.status && comment.status !== 'approved' ? (
                   <span style={{ display: 'inline-block', marginTop: 4, fontSize: 10, background: '#fef3c7', color: '#92400e', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>{statusLabel(comment.status)}</span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="placeholder-card" style={{ overflowX: 'auto', padding: 0 }}>
+        <h2 style={{ margin: 0, padding: '16px 16px 0', fontSize: 16, fontWeight: 700 }}>
+          Admin Action History
+        </h2>
+
+        {adminActionsError ? (
+          <p style={{ padding: '16px 16px', fontSize: 13, color: '#94a3b8' }}>
+            Admin action log is not available yet.
+          </p>
+        ) : adminActions.length === 0 ? (
+          <p style={{ padding: '16px 16px', fontSize: 13, color: '#94a3b8' }}>
+            No admin actions recorded for this post.
+          </p>
+        ) : (
+          <div style={{ padding: '0 16px', marginTop: 12 }}>
+            {adminActions.map((a) => (
+              <div key={a.id} style={{ borderBottom: '1px solid #f1f5f9', padding: '12px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'capitalize' }}>{a.action}</span>
+                  <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#94a3b8' }}>
+                    {formatTokyoDateTime(a.created_at)}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>
+                  status: {a.previous_status || '-'} → {a.next_status || '-'}
+                  {a.previous_is_deleted !== null || a.next_is_deleted !== null
+                    ? ` | deleted: ${a.previous_is_deleted ?? '-'} → ${a.next_is_deleted ?? '-'}`
+                    : ''}
+                </div>
+                {a.review_note ? (
+                  <p style={{ margin: '4px 0 0', fontSize: 12, color: '#78350f' }}>{a.review_note}</p>
+                ) : null}
+                {a.actor_email ? (
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94a3b8' }}>by {a.actor_email}</p>
                 ) : null}
               </div>
             ))}

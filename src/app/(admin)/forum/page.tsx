@@ -7,6 +7,10 @@ export const dynamic = 'force-dynamic'
 
 const FORUM_ORIGIN = 'https://forum.jimmyyao.com'
 
+function forumPostUrl(id: string) {
+  return `${FORUM_ORIGIN}/posts/${id.replace(/-/g, '')}`
+}
+
 type ForumPostRow = {
   id: string
   author_user_id: string | null
@@ -308,7 +312,7 @@ export default async function ForumPage({
                         <Link href={`/forum/posts/${post.id}`} style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word', color: '#3b82f6', textDecoration: 'none' }}>
                           {post.title || '-'}
                         </Link>
-                        <a href={`${FORUM_ORIGIN}/posts/${post.id}`} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 4, fontSize: 11, color: '#94a3b8', textDecoration: 'none' }} title="View on forum">↗</a>
+                        <a href={forumPostUrl(post.id)} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 4, fontSize: 11, color: '#94a3b8', textDecoration: 'none' }} title="View on forum">↗</a>
                         {post.is_pinned ? (
                           <span style={{ marginLeft: 6, fontSize: 10, background: '#e0e7ff', color: '#4338ca', borderRadius: 4, padding: '1px 6px', fontWeight: 700, whiteSpace: 'nowrap' }}>Pinned</span>
                         ) : null}
