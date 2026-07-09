@@ -1,8 +1,5 @@
 'use client'
 
-import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
-
 type TopbarProps = {
   userEmail?: string
   role?: string
@@ -10,12 +7,8 @@ type TopbarProps = {
 }
 
 export default function Topbar({ userEmail, role, onMenuClick }: TopbarProps) {
-  const router = useRouter()
-
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.refresh()
+    window.location.assign('https://www.jimmyyao.com/logout?next=https%3A%2F%2Fadmin.jimmyyao.com%2Fdashboard')
   }
 
   return (
