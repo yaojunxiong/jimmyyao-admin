@@ -5,6 +5,8 @@ import { formatTokyoDateTime } from '@/lib/date-format'
 
 export const dynamic = 'force-dynamic'
 
+const FORUM_ORIGIN = 'https://forum.jimmyyao.com'
+
 type ForumPostRow = {
   id: string
   author_user_id: string | null
@@ -303,12 +305,18 @@ export default async function ForumPage({
                   return (
                     <tr key={post.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '8px 12px', maxWidth: 300 }}>
-                        <span style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word' }}>{post.title || '-'}</span>
+                        <Link href={`/forum/posts/${post.id}`} style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word', color: '#3b82f6', textDecoration: 'none' }}>
+                          {post.title || '-'}
+                        </Link>
+                        <a href={`${FORUM_ORIGIN}/posts/${post.id}`} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 4, fontSize: 11, color: '#94a3b8', textDecoration: 'none' }} title="View on forum">↗</a>
                         {post.is_pinned ? (
                           <span style={{ marginLeft: 6, fontSize: 10, background: '#e0e7ff', color: '#4338ca', borderRadius: 4, padding: '1px 6px', fontWeight: 700, whiteSpace: 'nowrap' }}>Pinned</span>
                         ) : null}
                         {post.review_note ? (
                           <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94a3b8' }}>{post.review_note}</p>
+                        ) : null}
+                        {post.status !== 'approved' ? (
+                          <p style={{ margin: '2px 0 0', fontSize: 10, color: '#94a3b8' }}>Only approved posts are public</p>
                         ) : null}
                       </td>
                       <td style={{ padding: '8px 12px', fontSize: 11, fontFamily: 'monospace', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
