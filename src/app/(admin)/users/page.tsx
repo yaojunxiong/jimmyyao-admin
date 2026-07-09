@@ -113,6 +113,12 @@ export default async function UsersPage({
         <p>Read-only unified user view from database-side admin summary RPC.</p>
       </div>
 
+      <div style={{ marginBottom: 16 }}>
+        <Link href="/users/membership-requests" style={{ display: 'inline-block', background: '#ffffff', color: '#3b82f6', border: '1px solid #bfdbfe', borderRadius: 10, padding: '9px 14px', fontWeight: 700, fontSize: 14 }}>
+          Membership Requests
+        </Link>
+      </div>
+
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 16 }}>
         <div className="stat-card"><div className="stat-card-label">Total Users</div><div className="stat-card-value">{users.length}</div></div>
         <div className="stat-card"><div className="stat-card-label">Admins</div><div className="stat-card-value">{adminCount}</div></div>
