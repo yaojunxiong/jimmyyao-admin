@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { formatTokyoDateTime } from '@/lib/date-format'
@@ -150,7 +151,7 @@ export default async function UsersPage({
           </label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end', paddingBottom: 2 }}>
             <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 16px', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>Apply</button>
-            <a href="/users" style={{ background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 16px', fontWeight: 600, fontSize: 14, textDecoration: 'none', display: 'inline-block' }}>Clear</a>
+            <Link href="/users" style={{ background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 16px', fontWeight: 600, fontSize: 14, textDecoration: 'none', display: 'inline-block' }}>Clear</Link>
           </div>
         </form>
       </div>
@@ -184,7 +185,12 @@ export default async function UsersPage({
                 {filtered.slice(0, 300).map((user) => (
                   <tr key={user.user_key} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '9px 12px', maxWidth: 260 }}>
-                      <div style={{ fontWeight: 700, wordBreak: 'break-word' }}>{user.email || user.user_id || user.user_key}</div>
+                      <Link
+                        href={`/users/${encodeURIComponent(user.user_key)}`}
+                        style={{ fontWeight: 700, wordBreak: 'break-word', color: '#3b82f6', textDecoration: 'none' }}
+                      >
+                        {user.email || user.user_id || user.user_key}
+                      </Link>
                       <div style={{ fontSize: 11, color: '#64748b', wordBreak: 'break-word' }}>{user.display_name || '-'}</div>
                     </td>
                     <td style={{ padding: '9px 12px' }}>
