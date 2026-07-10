@@ -45,7 +45,6 @@ type ForumComment = {
   author_user_id: string | null
   author_email: string | null
   body: string | null
-  status: string | null
   is_deleted: boolean | null
   created_at: string | null
   updated_at: string | null
@@ -132,7 +131,7 @@ export default async function ForumPostDetailPage({
     try {
       const { data, error } = await supabase
         .from('forum_comments')
-        .select('id,post_id,author_user_id,author_email,body,status,is_deleted,created_at,updated_at')
+        .select('id,post_id,author_user_id,author_email,body,is_deleted,created_at,updated_at')
         .eq('post_id', id)
         .order('created_at', { ascending: true })
         .limit(100)
@@ -338,9 +337,6 @@ export default async function ForumPostDetailPage({
                 <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                   {comment.body || '-'}
                 </p>
-                {comment.status && comment.status !== 'approved' ? (
-                  <span style={{ display: 'inline-block', marginTop: 4, fontSize: 10, background: '#fef3c7', color: '#92400e', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>{statusLabel(comment.status)}</span>
-                ) : null}
                 <div style={{ marginTop: 6 }}>
                   <ForumCommentActions commentId={comment.id} isDeleted={comment.is_deleted ?? false} compact />
                 </div>
