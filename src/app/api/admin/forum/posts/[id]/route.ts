@@ -29,7 +29,7 @@ export async function POST(
   }
 
   const { action, review_note } = body
-  const validActions = ['approve', 'reject', 'hide', 'restore']
+  const validActions = ['approve', 'reject', 'hide', 'restore', 'delete_e2e_test']
 
   if (!action || !validActions.includes(action)) {
     return Response.json({ ok: false, error: `Invalid action. Must be one of: ${validActions.join(', ')}` }, { status: 400 })
@@ -38,6 +38,30 @@ export async function POST(
   const supabase = createClient(cookieStore)
 
   try {
+    if (action === 'delete_e2e_test') {
+      const { data, error } = await supabase.rpc('admin_delete_forum_e2e_post', {
+        p_post_id: id,
+      })
+
+      if (error) {
+        return Response.json({ ok: false, error: error.message }, { status: 500 })
+      }
+
+      const result = data as { success: boolean; error?: string }
+      if (!result.success) {
+        if (result.error === 'post_not_found') {
+          return Response.json({ ok: false, error: 'Post not found' }, { status: 404 })
+        }
+        if (result.error === 'not_e2e_post') {
+          return Response.json({ ok: false, error: 'Only recent automated E2E posts can be deleted' }, { status: 409 })
+        }
+        return Response.json({ ok: false, error: result.error || 'Unknown error' }, { status: 500 })
+      }
+
+      revalidatePath('/forum')
+      return Response.json({ ok: true })
+    }
+
     const { data, error } = await supabase.rpc('admin_update_forum_post_status', {
       p_post_id: id,
       p_action: action,
