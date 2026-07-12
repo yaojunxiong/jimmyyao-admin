@@ -48,10 +48,6 @@ function maskPublicValue(value: string) {
   return `${text.slice(0, 8)}...${text.slice(-4)}`
 }
 
-function configured(value: string | undefined) {
-  return String(value || '').trim() ? 'configured' : 'not configured'
-}
-
 function statusBadge(ok: boolean) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 800, background: ok ? '#dcfce7' : '#fee2e2', color: ok ? '#166534' : '#991b1b' }}>
@@ -150,7 +146,6 @@ export default async function SystemSettingsPage() {
   const supabaseUrl = String(process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()
   const supabaseAnonKey = String(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim()
   const siteUrl = String(process.env.NEXT_PUBLIC_SITE_URL || '').trim()
-  const adminAllowedEmails = String(process.env.ADMIN_ALLOWED_EMAILS || '').trim()
   const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
   const vercelEnv = process.env.VERCEL_ENV || 'not available'
   const gitCommit = process.env.VERCEL_GIT_COMMIT_SHA || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || 'not available'
@@ -168,7 +163,7 @@ export default async function SystemSettingsPage() {
           <InfoItem label="NEXT_PUBLIC_SUPABASE_URL" value={supabaseUrl ? maskPublicValue(supabaseUrl) : 'not configured'} tone={supabaseUrl ? 'success' : 'warning'} />
           <InfoItem label="NEXT_PUBLIC_SUPABASE_ANON_KEY" value={supabaseAnonKey ? maskPublicValue(supabaseAnonKey) : 'not configured'} tone={supabaseAnonKey ? 'success' : 'warning'} />
           <InfoItem label="NEXT_PUBLIC_SITE_URL" value={siteUrl || 'not configured'} tone={siteUrl ? 'success' : 'warning'} />
-          <InfoItem label="ADMIN_ALLOWED_EMAILS" value={configured(adminAllowedEmails)} tone={adminAllowedEmails ? 'success' : 'warning'} />
+          <InfoItem label="Admin authority" value="user_roles.role = admin" tone="success" />
           <InfoItem label="SUPABASE_SERVICE_ROLE_KEY" value={serviceRoleKey ? 'configured but not used by admin server client' : 'not configured'} tone={serviceRoleKey ? 'warning' : 'success'} />
         </InfoGrid>
       </Section>

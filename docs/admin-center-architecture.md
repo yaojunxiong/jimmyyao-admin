@@ -80,14 +80,14 @@ All subdomains share the same Supabase project:
 
 ## 7. Admin Permission System
 
-Priority-based admin check (evaluated in order):
+Admin access is evaluated server-side in this order:
 
 1. **Local Dev Bypass** (dev only): `NEXT_PUBLIC_ENABLE_LOCAL_ADMIN_BYPASS=true`
-2. **Email Override** (transitional): `ADMIN_ALLOWED_EMAILS` env var
-3. **Database Role** (primary): `user_roles` table with `role = 'admin'`
+2. **Database Role** (production authority): `user_roles` table with `role = 'admin'`
 
 The check is performed server-side in `src/lib/admin-auth.ts`. Unauthenticated users
-are redirected to `/login`. Non-admin users see an "Access Denied" page.
+are redirected to `/login`. Non-admin users see an "Access Denied" page. Production
+access is never granted from an email allowlist.
 
 ## 8. Deployment Architecture
 
@@ -109,7 +109,6 @@ Porkbun DNS
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only | Admin operations (if needed) |
 | `NEXT_PUBLIC_SITE_URL` | Public | Canonical site URL |
-| `ADMIN_ALLOWED_EMAILS` | Server-only | Transitional admin email list |
 
 ## 9. Migration Roadmap
 

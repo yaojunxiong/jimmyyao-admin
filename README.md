@@ -47,7 +47,6 @@ See `.env.example` for all required variables.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Yes | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | No | **No** | Service role key (server only) |
 | `NEXT_PUBLIC_SITE_URL` | Yes | Yes | Canonical site URL |
-| `ADMIN_ALLOWED_EMAILS` | No | **No** | Transitional admin email override |
 
 ### Scripts
 
