@@ -53,26 +53,7 @@ export async function checkAdminAccess(
       }
     }
 
-    // Check admin_allowed_emails as transitional fallback
-    const allowedEmailsRaw = process.env.ADMIN_ALLOWED_EMAILS || ''
-    const allowedEmails = allowedEmailsRaw
-      .split(',')
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean)
-    const emailMatch = user.email && allowedEmails.includes(user.email.toLowerCase())
-
-    if (emailMatch) {
-      return {
-        isAdmin: true,
-        role: 'admin-email-override',
-        bypassed: true,
-        userAuthed: true,
-        userEmail: user.email || undefined,
-        userId: user.id
-      }
-    }
-
-    // Primary: check user_roles table
+    // Production authorization is defined exclusively by user_roles.
     const { data: roleRaw } = await supabase
       .from('user_roles')
       .select('role')

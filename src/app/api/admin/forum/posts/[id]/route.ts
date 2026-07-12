@@ -49,6 +49,12 @@ export async function POST(
 
       const result = data as { success: boolean; error?: string }
       if (!result.success) {
+        if (result.error === 'not_authenticated') {
+          return Response.json({ ok: false, error: 'Not authenticated' }, { status: 401 })
+        }
+        if (result.error === 'not_authorized') {
+          return Response.json({ ok: false, error: 'Not authorized' }, { status: 403 })
+        }
         if (result.error === 'post_not_found') {
           return Response.json({ ok: false, error: 'Post not found' }, { status: 404 })
         }
