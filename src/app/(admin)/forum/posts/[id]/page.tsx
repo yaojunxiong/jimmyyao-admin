@@ -4,10 +4,15 @@ import { createClient } from '@/lib/supabase/server'
 import { formatTokyoDateTime } from '@/lib/date-format'
 import ForumPostActions from '@/components/forum-post-actions'
 import ForumCommentActions from '@/components/forum-comment-actions'
+import RichTextRenderer from '@/components/richtext/rich-text-renderer'
 
 export const dynamic = 'force-dynamic'
 
-const FORUM_ORIGIN = 'https://forum.jimmyyao.com'
+const FORUM_ORIGIN = (
+  process.env.FORUM_ORIGIN
+  || process.env.NEXT_PUBLIC_FORUM_ORIGIN
+  || 'https://forum.jimmyyao.com'
+).replace(/\/$/, '')
 
 function forumPostUrl(id: string) {
   return `${FORUM_ORIGIN}/posts/${id.replace(/-/g, '')}`
@@ -35,6 +40,8 @@ type ForumPost = {
   reviewed_by: string | null
   reviewed_at: string | null
   review_note: string | null
+  content_format: string | null
+  content_html: string | null
   created_at: string | null
   updated_at: string | null
 }
@@ -107,7 +114,7 @@ export default async function ForumPostDetailPage({
   try {
     const { data, error } = await supabase
       .from('forum_posts')
-      .select('id,author_user_id,author_email,title,body,category,status,comment_count,is_pinned,is_deleted,reviewed_by,reviewed_at,review_note,created_at,updated_at')
+      .select('id,author_user_id,author_email,title,body,category,status,comment_count,is_pinned,is_deleted,reviewed_by,reviewed_at,review_note,content_format,content_html,created_at,updated_at')
       .eq('id', id)
       .single()
 
@@ -275,21 +282,31 @@ export default async function ForumPostDetailPage({
       <div className="placeholder-card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Content</h2>
-          <a
-            href={forumPostUrl(post!.id)}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ fontSize: 13, color: '#3b82f6', textDecoration: 'none' }}
-          >
-            View on forum ↗
-          </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Link
+              href={`/forum/posts/${post!.id}/edit`}
+              style={{ fontSize: 13, color: '#4338ca', textDecoration: 'none', fontWeight: 700 }}
+            >
+              Edit
+            </Link>
+            <a
+              href={forumPostUrl(post!.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 13, color: '#3b82f6', textDecoration: 'none' }}
+            >
+              View on forum ↗
+            </a>
+          </div>
         </div>
         {post!.status !== 'approved' ? (
           <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 12 }}>Only approved posts are visible on the public forum.</p>
         ) : null}
-        <div style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#0f172a' }}>
-          {post!.body || 'No content.'}
-        </div>
+        <RichTextRenderer
+          html={post!.content_html}
+          fallback={post!.body}
+          format={post!.content_format}
+        />
       </div>
 
       {post!.review_note ? (
