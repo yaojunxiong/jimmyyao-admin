@@ -205,9 +205,17 @@ export default async function ForumPage({
 
   return (
     <>
-      <div className="page-header" style={{ marginBottom: 0 }}>
-        <h1>Forum Management</h1>
-        <p>Read-only forum post and comment management.</p>
+      <div className="page-header" style={{ marginBottom: 0, display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
+        <div>
+          <h1>Forum Management</h1>
+          <p>Review member posts and publish administrator-authored announcements.</p>
+        </div>
+        <Link
+          href="/forum/create"
+          style={{ background: '#2563eb', color: '#fff', borderRadius: 8, padding: '9px 14px', fontSize: 13, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}
+        >
+          Create Post
+        </Link>
       </div>
 
       <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '2px solid #e2e8f0' }}>
@@ -405,7 +413,7 @@ export default async function ForumPage({
       </div>
 
       <p style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: '#94a3b8' }}>
-        Read-only view. Post management (approve, hide, delete, pin) not yet available.
+        Member posts continue through the existing plain-text moderation flow.
       </p>
 
       {!errorMessage ? (

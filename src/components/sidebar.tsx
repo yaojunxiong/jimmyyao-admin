@@ -6,13 +6,28 @@ import { usePathname } from 'next/navigation'
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
   { href: '/operations', label: 'Operations', icon: '✅' },
-  { href: '/study', label: 'Study Management', icon: '📚' },
+  {
+    href: '/study',
+    label: 'Study Management',
+    icon: '📚',
+    children: [
+      { href: '/study', label: 'Dashboard' },
+      { href: '/study/lessons', label: 'Lesson Audit' },
+      { href: '/study/lessons/1', label: 'Lesson Detail' },
+      { href: '/study/knowledge-base', label: 'Knowledge Base' },
+      { href: '/study/recordings', label: 'Recordings' },
+      { href: '/study/recording-health', label: 'Recording Health' },
+      { href: '/study/checkins', label: 'Check-ins' },
+      { href: '/study/recitation-videos', label: 'Recitation Videos' },
+    ],
+  },
   {
     href: '/forum',
     label: 'Forum Management',
     icon: '💬',
     children: [
       { href: '/forum', label: 'Posts' },
+      { href: '/forum/create', label: 'Create Post' },
       { href: '/forum/comments', label: 'Comments' },
     ],
   },
