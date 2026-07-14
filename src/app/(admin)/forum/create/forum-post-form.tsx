@@ -58,6 +58,13 @@ export default function ForumPostForm({ categories, adminEmail, richTextEnabled 
         body: JSON.stringify(payload),
       })
 
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        setError('Server returned an unexpected response. Please try again or contact support.')
+        setSubmitting(false)
+        return
+      }
+
       const data = await res.json()
 
       if (!data.ok) {

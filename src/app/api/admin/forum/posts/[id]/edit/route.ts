@@ -12,47 +12,47 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params
-  if (!UUID_PATTERN.test(id)) {
-    return Response.json({ ok: false, error: 'Invalid post id' }, { status: 400 })
-  }
-
-  const cookieStore = await cookies()
-  const adminCheck = await checkAdminAccess(cookieStore)
-
-  if (!adminCheck.userAuthed) {
-    return Response.json({ ok: false, error: 'Not authenticated' }, { status: 401 })
-  }
-
-  if (!adminCheck.isAdmin || adminCheck.role !== 'admin') {
-    return Response.json({ ok: false, error: 'Not authorized' }, { status: 403 })
-  }
-
-  let requestBody: unknown
   try {
-    requestBody = await request.json()
-  } catch {
-    return Response.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 })
-  }
+    const { id } = await params
+    if (!UUID_PATTERN.test(id)) {
+      return Response.json({ ok: false, error: 'Invalid post id' }, { status: 400 })
+    }
 
-  if (!requestBody || typeof requestBody !== 'object' || Array.isArray(requestBody)) {
-    return Response.json({ ok: false, error: 'Invalid request body' }, { status: 400 })
-  }
+    const cookieStore = await cookies()
+    const adminCheck = await checkAdminAccess(cookieStore)
 
-  const prepared = await preparePostInput(requestBody)
-  if (!prepared.ok) {
-    return Response.json({ ok: false, error: prepared.error }, { status: 400 })
-  }
+    if (!adminCheck.userAuthed) {
+      return Response.json({ ok: false, error: 'Not authenticated' }, { status: 401 })
+    }
 
-  const supabase = createClient(cookieStore)
-  if (
-    prepared.value.contentFormat === 'rich_text'
-    && !(await isRichTextFeatureEnabled(supabase, adminCheck.role))
-  ) {
-    return Response.json({ ok: false, error: 'Rich-text editing is disabled' }, { status: 403 })
-  }
+    if (!adminCheck.isAdmin || adminCheck.role !== 'admin') {
+      return Response.json({ ok: false, error: 'Not authorized' }, { status: 403 })
+    }
 
-  try {
+    let requestBody: unknown
+    try {
+      requestBody = await request.json()
+    } catch {
+      return Response.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 })
+    }
+
+    if (!requestBody || typeof requestBody !== 'object' || Array.isArray(requestBody)) {
+      return Response.json({ ok: false, error: 'Invalid request body' }, { status: 400 })
+    }
+
+    const prepared = await preparePostInput(requestBody)
+    if (!prepared.ok) {
+      return Response.json({ ok: false, error: prepared.error }, { status: 400 })
+    }
+
+    const supabase = createClient(cookieStore)
+    if (
+      prepared.value.contentFormat === 'rich_text'
+      && !(await isRichTextFeatureEnabled(supabase, adminCheck.role))
+    ) {
+      return Response.json({ ok: false, error: 'Rich-text editing is disabled' }, { status: 403 })
+    }
+
     const { data, error } = await supabase.rpc('admin_update_forum_post', {
       p_post_id: id,
       p_title: prepared.value.title,
