@@ -36,7 +36,7 @@ type PrepareResult =
   | { ok: true; value: PreparedPostInput }
   | { ok: false; error: string }
 
-export function preparePostInput(input: PostInput): PrepareResult {
+export async function preparePostInput(input: PostInput): Promise<PrepareResult> {
   const title = typeof input.title === 'string' ? input.title.trim() : ''
   if (title.length < 2 || title.length > 120) {
     return { ok: false, error: 'Title must be between 2 and 120 characters' }
@@ -105,9 +105,9 @@ export function preparePostInput(input: PostInput): PrepareResult {
     return { ok: false, error: 'Rich-text HTML is missing or too large' }
   }
 
-  let sanitized: ReturnType<typeof sanitizeHtml>
+  let sanitized: Awaited<ReturnType<typeof sanitizeHtml>>
   try {
-    sanitized = sanitizeHtml(input.content_html)
+    sanitized = await sanitizeHtml(input.content_html)
   } catch {
     return { ok: false, error: 'Rich-text HTML is invalid or too large' }
   }

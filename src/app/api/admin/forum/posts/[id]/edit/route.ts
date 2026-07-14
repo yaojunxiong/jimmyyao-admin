@@ -39,7 +39,7 @@ export async function PUT(
     return Response.json({ ok: false, error: 'Invalid request body' }, { status: 400 })
   }
 
-  const prepared = preparePostInput(requestBody)
+  const prepared = await preparePostInput(requestBody)
   if (!prepared.ok) {
     return Response.json({ ok: false, error: prepared.error }, { status: 400 })
   }

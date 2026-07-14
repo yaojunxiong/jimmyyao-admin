@@ -6,10 +6,10 @@ type RichTextRendererProps = {
   format: string | null
 }
 
-export default function RichTextRenderer({ html, fallback, format }: RichTextRendererProps) {
+export default async function RichTextRenderer({ html, fallback, format }: RichTextRendererProps) {
   if (format === 'rich_text' && html) {
     try {
-      const sanitized = sanitizeHtml(html).html
+      const sanitized = (await sanitizeHtml(html)).html
       if (sanitized.trim()) {
         return (
           <div

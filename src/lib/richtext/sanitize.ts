@@ -1,5 +1,3 @@
-import createDOMPurify from 'dompurify'
-import { JSDOM } from 'jsdom'
 import { normalizeVideoEmbedUrl, type SafeVideo } from './video-url'
 
 export const MAX_RICH_HTML_LENGTH = 250_000
@@ -124,11 +122,15 @@ function extractText(body: HTMLElement): string {
   return (clone.textContent || '').replace(/\s+/g, ' ').trim()
 }
 
-export function sanitizeHtml(dirtyHtml: string): SanitizeResult {
+export async function sanitizeHtml(dirtyHtml: string): Promise<SanitizeResult> {
   if (dirtyHtml.length > MAX_RICH_HTML_LENGTH) {
     throw new RangeError(`Rich-text HTML exceeds ${MAX_RICH_HTML_LENGTH} characters`)
   }
 
+  const [{ default: createDOMPurify }, { JSDOM }] = await Promise.all([
+    import('dompurify'),
+    import('jsdom'),
+  ])
   const dom = new JSDOM('<!doctype html><html><body></body></html>')
 
   try {

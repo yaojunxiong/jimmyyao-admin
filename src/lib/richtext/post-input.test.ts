@@ -8,8 +8,8 @@ const base = {
 }
 
 describe('preparePostInput', () => {
-  it('preserves the ordinary plain-text contract', () => {
-    const result = preparePostInput({
+  it('preserves the ordinary plain-text contract', async () => {
+    const result = await preparePostInput({
       ...base,
       body: 'Legacy text',
       content_format: 'plain_text',
@@ -21,8 +21,8 @@ describe('preparePostInput', () => {
     }
   })
 
-  it('uses sanitized server-extracted text as the rich-text fallback body', () => {
-    const result = preparePostInput({
+  it('uses sanitized server-extracted text as the rich-text fallback body', async () => {
+    const result = await preparePostInput({
       ...base,
       body: 'client-controlled fallback',
       content_format: 'rich_text',
@@ -36,35 +36,35 @@ describe('preparePostInput', () => {
     }
   })
 
-  it('rejects unknown formats and empty sanitized rich text', () => {
-    assert.equal(preparePostInput({
+  it('rejects unknown formats and empty sanitized rich text', async () => {
+    assert.equal((await preparePostInput({
       ...base,
       body: 'text',
       content_format: 'html',
-    }).ok, false)
+    })).ok, false)
 
-    assert.equal(preparePostInput({
+    assert.equal((await preparePostInput({
       ...base,
       body: 'text',
       content_format: 'rich_text',
       content_json: { type: 'doc' },
       content_html: '<script>alert(1)</script>',
-    }).ok, false)
+    })).ok, false)
   })
 
-  it('enforces the live forum body limit', () => {
-    assert.equal(preparePostInput({
+  it('enforces the live forum body limit', async () => {
+    assert.equal((await preparePostInput({
       ...base,
       body: 'x'.repeat(MAX_POST_BODY_LENGTH + 1),
       content_format: 'plain_text',
-    }).ok, false)
+    })).ok, false)
   })
 
-  it('rejects whitespace-only plain text', () => {
-    assert.equal(preparePostInput({
+  it('rejects whitespace-only plain text', async () => {
+    assert.equal((await preparePostInput({
       ...base,
       body: '   \n  ',
       content_format: 'plain_text',
-    }).ok, false)
+    })).ok, false)
   })
 })
