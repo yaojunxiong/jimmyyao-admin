@@ -14,11 +14,20 @@ export function validateVideoFlagBody(
     return { ok: false, error: 'Invalid JSON body', status: 400 }
   }
 
-  const { enabled } = body as Record<string, unknown>
+  const record = body as Record<string, unknown>
+  const keys = Object.keys(record)
 
-  if (typeof enabled !== 'boolean') {
-    return { ok: false, error: 'Missing or invalid "enabled" field — must be a boolean', status: 400 }
+  if (keys.length === 0) {
+    return { ok: false, error: 'Missing "enabled" field — must be a boolean', status: 400 }
   }
 
-  return { ok: true, enabled }
+  if (keys.length !== 1 || keys[0] !== 'enabled') {
+    return { ok: false, error: 'Body must contain only the "enabled" field', status: 400 }
+  }
+
+  if (typeof record.enabled !== 'boolean') {
+    return { ok: false, error: 'Invalid "enabled" field — must be a boolean', status: 400 }
+  }
+
+  return { ok: true, enabled: record.enabled }
 }

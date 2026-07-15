@@ -68,10 +68,16 @@ describe('video-flag operator API', () => {
       if (!result.ok) assert.match(result.error, /enabled/)
     })
 
-    it('accepts extra fields alongside valid enabled (ignored silently)', () => {
+    it('rejects extra fields alongside enabled', () => {
       const result = validateVideoFlagBody({ enabled: true, key: 'other_flag' })
-      assert.equal(result.ok, true)
-      if (result.ok) assert.equal(result.enabled, true)
+      assert.equal(result.ok, false)
+      if (!result.ok) assert.match(result.error, /only.*enabled/)
+    })
+
+    it('rejects body with only unknown fields', () => {
+      const result = validateVideoFlagBody({ foo: 'bar' })
+      assert.equal(result.ok, false)
+      if (!result.ok) assert.match(result.error, /only.*enabled/)
     })
 
     it('FLAG_KEY is forum_local_video_upload', () => {
