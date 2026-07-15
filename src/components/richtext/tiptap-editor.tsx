@@ -1,20 +1,38 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { useEditor, EditorContent, type Editor } from '@tiptap/react'
+import {
+  useEditor,
+  useEditorState,
+  EditorContent,
+  type Editor,
+} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import LinkExtension from '@tiptap/extension-link'
 import ImageExtension from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import Underline from '@tiptap/extension-underline'
 import Youtube from '@tiptap/extension-youtube'
+import {
+  MAX_VIDEOS_PER_POST,
+  validateVideoUploadInput,
+} from '@/lib/richtext/video-upload'
+import {
+  uploadForumVideo,
+  type VideoUploadProgress,
+} from '@/lib/richtext/video-upload-client'
 import { normalizeVideoEmbedUrl } from '@/lib/richtext/video-url'
+import { createLocalVideoNode, LocalVideo } from './local-video-extension'
 import { Vimeo } from './vimeo-extension'
 
 type Props = {
   content: string
   onChange: (json: unknown, html: string, text: string) => void
   placeholder?: string
+  localVideoUploadEnabled: boolean
+  localVideoApprovedOrigin: string | null
+  onVideoUploadStateChange?: (pending: boolean) => void
+  onLocalVideoCountChange?: (count: number) => void
 }
 
 type MenuButtonProps = {
@@ -51,11 +69,43 @@ function MenuButton({ onClick, active, disabled, title, children }: MenuButtonPr
   )
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+const VIDEO_PHASE_LABEL = {
+  reserving: 'Authorizing upload…',
+  uploading: 'Uploading video…',
+  finalizing: 'Verifying video…',
+} as const
+
+export function countLocalVideos(editor: Editor): number {
+  let count = 0
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === 'localVideo') count += 1
+  })
+  return count
+}
+
+function Toolbar({
+  editor,
+  localVideoUploadEnabled,
+  onVideoUploadStateChange,
+}: {
+  editor: Editor
+  localVideoUploadEnabled: boolean
+  onVideoUploadStateChange?: (pending: boolean) => void
+}) {
   const [linkUrl, setLinkUrl] = useState('')
   const [showLinkInput, setShowLinkInput] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const videoInputRef = useRef<HTMLInputElement>(null)
+  const [videoUpload, setVideoUpload] = useState<VideoUploadProgress | null>(null)
+  const { localVideoCount, localVideoSelected } = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => ({
+      localVideoCount: countLocalVideos(currentEditor),
+      localVideoSelected: currentEditor.isActive('localVideo'),
+    }),
+  })
+  const videoUploading = videoUpload !== null
 
   const addLink = useCallback(() => {
     if (linkUrl) {
@@ -126,6 +176,73 @@ function Toolbar({ editor }: { editor: Editor }) {
       type: 'vimeo',
       attrs: { src: video.src, width: 640, height: 360 },
     }).run()
+  }, [editor])
+
+  const handleVideoUpload = useCallback(async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!localVideoUploadEnabled) {
+      alert('Local video upload is currently disabled.')
+      event.target.value = ''
+      return
+    }
+
+    const validation = validateVideoUploadInput({
+      name: file.name,
+      declaredMime: file.type,
+      size: file.size,
+    })
+    if (!validation.ok) {
+      alert(validation.error)
+      event.target.value = ''
+      return
+    }
+
+    if (countLocalVideos(editor) >= MAX_VIDEOS_PER_POST) {
+      alert(`A post may contain at most ${MAX_VIDEOS_PER_POST} local videos.`)
+      event.target.value = ''
+      return
+    }
+
+    setVideoUpload({ phase: 'reserving', percent: 0 })
+    onVideoUploadStateChange?.(true)
+
+    try {
+      const video = await uploadForumVideo(file, { onProgress: setVideoUpload })
+      if (countLocalVideos(editor) >= MAX_VIDEOS_PER_POST) {
+        throw new Error(
+          `The video was finalized, but the post already contains ${MAX_VIDEOS_PER_POST} local videos`,
+        )
+      }
+
+      const inserted = editor
+        .chain()
+        .focus()
+        .insertContent([
+          createLocalVideoNode(video),
+          { type: 'paragraph' },
+        ])
+        .run()
+      if (!inserted) {
+        throw new Error('The video was finalized but could not be inserted into the editor')
+      }
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'Unexpected video upload error'
+      alert(`Video upload failed: ${message}`)
+    } finally {
+      setVideoUpload(null)
+      onVideoUploadStateChange?.(false)
+      if (videoInputRef.current) videoInputRef.current.value = ''
+    }
+  }, [editor, localVideoUploadEnabled, onVideoUploadStateChange])
+
+  const removeSelectedVideo = useCallback(() => {
+    if (!editor.isActive('localVideo')) return
+    editor.chain().focus().deleteSelection().run()
   }, [editor])
 
   return (
@@ -200,6 +317,45 @@ function Toolbar({ editor }: { editor: Editor }) {
         onChange={handleImageUpload}
       />
 
+      <MenuButton
+        onClick={() => videoInputRef.current?.click()}
+        disabled={
+          !localVideoUploadEnabled
+          || videoUploading
+          || localVideoCount >= MAX_VIDEOS_PER_POST
+        }
+        title={
+          !localVideoUploadEnabled
+            ? 'Local video upload is currently disabled'
+            : localVideoCount >= MAX_VIDEOS_PER_POST
+            ? `Maximum ${MAX_VIDEOS_PER_POST} local videos reached`
+            : 'Upload MP4 or WebM video (maximum 50 MB)'
+        }
+      >
+        {videoUploading
+          ? 'Uploading…'
+          : localVideoUploadEnabled
+            ? 'Upload Video'
+            : 'Video Upload Disabled'}
+      </MenuButton>
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/mp4,video/webm,.mp4,.webm"
+        disabled={!localVideoUploadEnabled || videoUploading}
+        style={{ display: 'none' }}
+        onChange={handleVideoUpload}
+      />
+
+      {localVideoSelected ? (
+        <MenuButton
+          onClick={removeSelectedVideo}
+          title="Remove selected local video"
+        >
+          Remove Video
+        </MenuButton>
+      ) : null}
+
       <MenuButton onClick={addYoutubeVideo} title="YouTube">
         ▶️
       </MenuButton>
@@ -241,11 +397,45 @@ function Toolbar({ editor }: { editor: Editor }) {
           </button>
         </div>
       )}
+
+      {videoUpload ? (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'max-content minmax(120px, 1fr) 42px',
+            alignItems: 'center',
+            gap: 8,
+            flexBasis: '100%',
+            marginTop: 4,
+            color: '#475569',
+            fontSize: 12,
+          }}
+        >
+          <span>{VIDEO_PHASE_LABEL[videoUpload.phase]}</span>
+          <progress
+            aria-label="Video upload progress"
+            max={100}
+            value={videoUpload.percent}
+            style={{ width: '100%' }}
+          />
+          <span>{videoUpload.percent}%</span>
+        </div>
+      ) : null}
     </div>
   )
 }
 
-export default function TipTapEditor({ content, onChange, placeholder }: Props) {
+export default function TipTapEditor({
+  content,
+  onChange,
+  placeholder,
+  localVideoUploadEnabled,
+  localVideoApprovedOrigin,
+  onVideoUploadStateChange,
+  onLocalVideoCountChange,
+}: Props) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -270,6 +460,7 @@ export default function TipTapEditor({ content, onChange, placeholder }: Props) 
         HTMLAttributes: { class: 'video-embed-frame' },
       }),
       Vimeo,
+      LocalVideo.configure({ approvedOrigin: localVideoApprovedOrigin }),
       Placeholder.configure({
         placeholder: placeholder || 'Write something...',
       }),
@@ -278,12 +469,14 @@ export default function TipTapEditor({ content, onChange, placeholder }: Props) 
     immediatelyRender: false,
     onCreate: ({ editor }) => {
       onChange(editor.getJSON(), editor.getHTML(), editor.getText())
+      onLocalVideoCountChange?.(countLocalVideos(editor))
     },
     onUpdate: ({ editor }) => {
       const json = editor.getJSON()
       const html = editor.getHTML()
       const text = editor.getText()
       onChange(json, html, text)
+      onLocalVideoCountChange?.(countLocalVideos(editor))
     },
     editorProps: {
       attributes: {
@@ -301,7 +494,11 @@ export default function TipTapEditor({ content, onChange, placeholder }: Props) 
       overflow: 'hidden',
       background: '#fff',
     }}>
-      <Toolbar editor={editor} />
+      <Toolbar
+        editor={editor}
+        localVideoUploadEnabled={localVideoUploadEnabled}
+        onVideoUploadStateChange={onVideoUploadStateChange}
+      />
       <EditorContent
         editor={editor}
         style={{
@@ -364,6 +561,19 @@ export default function TipTapEditor({ content, onChange, placeholder }: Props) 
           height: auto;
           border-radius: 8px;
           margin: 12px 0;
+        }
+        .tiptap-editor video[data-forum-video] {
+          display: block;
+          width: 100%;
+          max-width: 100%;
+          height: auto;
+          margin: 12px 0;
+          border-radius: 8px;
+          background: #0f172a;
+        }
+        .tiptap-editor video[data-forum-video].ProseMirror-selectednode {
+          outline: 3px solid #6366f1;
+          outline-offset: 2px;
         }
         .tiptap-editor hr {
           border: none;

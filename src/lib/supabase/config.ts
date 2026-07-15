@@ -1,5 +1,28 @@
 const SUPABASE_FALLBACK_URL = 'https://missing-supabase-config.local'
 const SUPABASE_FALLBACK_KEY = 'sb_anon_missing_config'
+const SUPABASE_PROJECT_ORIGIN_PATTERN =
+  /^https:\/\/([a-z0-9]{20}\.supabase\.co)\/?$/
+export const PRODUCTION_SUPABASE_PROJECT_ORIGIN =
+  'https://ycjuceortcduakxscfes.supabase.co'
+
+export function normalizeSupabaseProjectOrigin(value: unknown): string | null {
+  if (typeof value !== 'string' || !value || value !== value.trim()) return null
+  const match = SUPABASE_PROJECT_ORIGIN_PATTERN.exec(value)
+  return match ? `https://${match[1]}` : null
+}
+
+export function getConfiguredSupabaseProjectOrigin(): string | null {
+  const origin = normalizeSupabaseProjectOrigin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+  )
+  if (
+    process.env.VERCEL_ENV === 'production'
+    && origin !== PRODUCTION_SUPABASE_PROJECT_ORIGIN
+  ) {
+    return null
+  }
+  return origin
+}
 
 export function getSupabasePublicEnv() {
   const url = String(process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()

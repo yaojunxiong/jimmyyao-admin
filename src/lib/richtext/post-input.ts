@@ -1,4 +1,8 @@
 import { MAX_RICH_HTML_LENGTH, sanitizeHtml } from './sanitize'
+import {
+  collectTipTapLocalVideos,
+  haveMatchingVideoReferences,
+} from './video-upload'
 
 export const MAX_POST_BODY_LENGTH = 12_000
 export const MAX_RICH_JSON_BYTES = 1_048_576
@@ -30,13 +34,40 @@ export type PreparedPostInput = {
   contentJson: unknown | null
   contentHtml: string | null
   contentText: string | null
+  forumVideoPaths: string[]
 }
 
 type PrepareResult =
   | { ok: true; value: PreparedPostInput }
-  | { ok: false; error: string }
+  | { ok: false; error: string; status?: 400 | 403 }
 
-export async function preparePostInput(input: PostInput): Promise<PrepareResult> {
+type PreparePostInputOptions = {
+  localVideoUploadEnabled?: boolean
+  existingForumVideoPaths?: readonly string[]
+}
+
+function hasNewLocalVideoPaths(
+  existingPaths: readonly string[],
+  nextPaths: readonly string[],
+): boolean {
+  const available = new Map<string, number>()
+  for (const path of existingPaths) {
+    available.set(path, (available.get(path) || 0) + 1)
+  }
+
+  for (const path of nextPaths) {
+    const count = available.get(path) || 0
+    if (count === 0) return true
+    available.set(path, count - 1)
+  }
+
+  return false
+}
+
+export async function preparePostInput(
+  input: PostInput,
+  options: PreparePostInputOptions = {},
+): Promise<PrepareResult> {
   const title = typeof input.title === 'string' ? input.title.trim() : ''
   if (title.length < 2 || title.length > 120) {
     return { ok: false, error: 'Title must be between 2 and 120 characters' }
@@ -75,6 +106,7 @@ export async function preparePostInput(input: PostInput): Promise<PrepareResult>
         contentJson: null,
         contentHtml: null,
         contentText: null,
+        forumVideoPaths: [],
       },
     }
   }
@@ -116,6 +148,30 @@ export async function preparePostInput(input: PostInput): Promise<PrepareResult>
     return { ok: false, error: 'Sanitized rich-text HTML is too large' }
   }
 
+  const tipTapVideos = collectTipTapLocalVideos(input.content_json)
+  if (!tipTapVideos.ok) {
+    return { ok: false, error: tipTapVideos.error }
+  }
+
+  if (!haveMatchingVideoReferences(tipTapVideos.videos, sanitized.videos)) {
+    return { ok: false, error: 'TipTap JSON and HTML local video references do not match' }
+  }
+
+  const nextVideoPaths = sanitized.videos.map((video) => video.objectPath)
+  if (
+    !options.localVideoUploadEnabled
+    && hasNewLocalVideoPaths(
+      options.existingForumVideoPaths || [],
+      nextVideoPaths,
+    )
+  ) {
+    return {
+      ok: false,
+      error: 'Local video uploads are disabled',
+      status: 403,
+    }
+  }
+
   if (sanitized.text.length < 1 || sanitized.text.length > MAX_POST_BODY_LENGTH) {
     return {
       ok: false,
@@ -133,6 +189,7 @@ export async function preparePostInput(input: PostInput): Promise<PrepareResult>
       contentJson: input.content_json,
       contentHtml: sanitized.html,
       contentText: sanitized.text,
+      forumVideoPaths: nextVideoPaths,
     },
   }
 }

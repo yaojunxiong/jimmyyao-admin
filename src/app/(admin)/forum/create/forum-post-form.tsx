@@ -13,9 +13,17 @@ type Props = {
   categories: readonly Category[]
   adminEmail?: string
   richTextEnabled: boolean
+  localVideoUploadEnabled: boolean
+  localVideoApprovedOrigin: string | null
 }
 
-export default function ForumPostForm({ categories, adminEmail, richTextEnabled }: Props) {
+export default function ForumPostForm({
+  categories,
+  adminEmail,
+  richTextEnabled,
+  localVideoUploadEnabled,
+  localVideoApprovedOrigin,
+}: Props) {
   const router = useRouter()
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('grammar')
@@ -25,10 +33,17 @@ export default function ForumPostForm({ categories, adminEmail, richTextEnabled 
   const [richHtml, setRichHtml] = useState('')
   const [richText, setRichText] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [videoUploadPending, setVideoUploadPending] = useState(false)
+  const [localVideoCount, setLocalVideoCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (videoUploadPending) {
+      setError('Wait for the video upload and verification to finish before saving.')
+      return
+    }
+
     setSubmitting(true)
     setError(null)
 
@@ -138,8 +153,20 @@ export default function ForumPostForm({ categories, adminEmail, richTextEnabled 
             <input
               type="checkbox"
               checked={useRichText}
+              disabled={videoUploadPending || localVideoCount > 0}
+              title={
+                localVideoCount > 0
+                  ? 'Remove local videos before switching to plain text'
+                  : undefined
+              }
               onChange={(e) => setUseRichText(e.target.checked)}
-              style={{ width: 16, height: 16, cursor: 'pointer' }}
+              style={{
+                width: 16,
+                height: 16,
+                cursor: videoUploadPending || localVideoCount > 0
+                  ? 'not-allowed'
+                  : 'pointer',
+              }}
             />
             <span style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>
               Use Rich Text Editor (TipTap)
@@ -148,7 +175,11 @@ export default function ForumPostForm({ categories, adminEmail, richTextEnabled 
 
           <div style={{ display: useRichText ? 'block' : 'none' }} aria-hidden={!useRichText}>
               <p style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
-                Supports headings, bold, italic, strikethrough, quotes, lists, links, image upload, and YouTube/Vimeo video embed. Local video upload is not supported in this version.
+                Supports headings, formatting, links, image uploads, and YouTube/Vimeo embeds.
+                {' '}
+                {localVideoUploadEnabled
+                  ? 'Local MP4/WebM uploads are enabled (maximum 50 MB and 3 per post). Select a local video to remove it.'
+                  : 'Local video upload is currently disabled; the other rich-text features remain available.'}
               </p>
               <TipTapEditor
                 content=""
@@ -158,6 +189,10 @@ export default function ForumPostForm({ categories, adminEmail, richTextEnabled 
                   setRichText(text)
                 }}
                 placeholder="Write your forum post..."
+                localVideoUploadEnabled={localVideoUploadEnabled}
+                localVideoApprovedOrigin={localVideoApprovedOrigin}
+                onVideoUploadStateChange={setVideoUploadPending}
+                onLocalVideoCountChange={setLocalVideoCount}
               />
           </div>
         </div>
@@ -195,7 +230,7 @@ export default function ForumPostForm({ categories, adminEmail, richTextEnabled 
       <div style={{ display: 'flex', gap: 8 }}>
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || videoUploadPending}
           style={{
             background: '#3b82f6',
             color: '#fff',
@@ -204,14 +239,38 @@ export default function ForumPostForm({ categories, adminEmail, richTextEnabled 
             padding: '10px 24px',
             fontWeight: 600,
             fontSize: 14,
-            cursor: submitting ? 'wait' : 'pointer',
-            opacity: submitting ? 0.6 : 1,
+            cursor: submitting
+              ? 'wait'
+              : videoUploadPending
+                ? 'not-allowed'
+                : 'pointer',
+            opacity: submitting || videoUploadPending ? 0.6 : 1,
           }}
         >
-          {submitting ? 'Creating...' : 'Create Post'}
+          {videoUploadPending
+            ? 'Finishing Video Upload…'
+            : submitting
+              ? 'Creating...'
+              : 'Create Post'}
         </button>
         <Link
           href="/forum"
+          aria-disabled={videoUploadPending}
+          onClick={(event) => {
+            if (videoUploadPending) {
+              event.preventDefault()
+              return
+            }
+
+            if (
+              localVideoCount > 0
+              && !window.confirm(
+                'Cancel this post? Its finalized local videos will remain until the reference-checked cleanup process removes them.',
+              )
+            ) {
+              event.preventDefault()
+            }
+          }}
           style={{
             background: 'transparent',
             color: '#64748b',
@@ -222,6 +281,8 @@ export default function ForumPostForm({ categories, adminEmail, richTextEnabled 
             fontSize: 14,
             textDecoration: 'none',
             display: 'inline-block',
+            pointerEvents: videoUploadPending ? 'none' : 'auto',
+            opacity: videoUploadPending ? 0.6 : 1,
           }}
         >
           Cancel

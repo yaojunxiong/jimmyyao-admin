@@ -28,6 +28,8 @@ type Props = {
   initialRichHtml: string | null
   initialRichJson: unknown
   categories: readonly Category[]
+  localVideoUploadEnabled: boolean
+  localVideoApprovedOrigin: string | null
 }
 
 export default function ForumPostEditForm({
@@ -39,6 +41,8 @@ export default function ForumPostEditForm({
   initialRichHtml,
   initialRichJson: _initialRichJson,
   categories,
+  localVideoUploadEnabled,
+  localVideoApprovedOrigin,
 }: Props) {
   const router = useRouter()
   const [title, setTitle] = useState(initialTitle)
@@ -49,11 +53,17 @@ export default function ForumPostEditForm({
   const [richHtml, setRichHtml] = useState(initialRichHtml || '')
   const [richText, setRichText] = useState(initialBody)
   const [submitting, setSubmitting] = useState(false)
+  const [videoUploadPending, setVideoUploadPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const initialEditorContent = initialRichHtml || plainTextToHtml(initialBody)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (videoUploadPending) {
+      setError('Wait for the video upload and verification to finish before saving.')
+      return
+    }
+
     setSubmitting(true)
     setError(null)
 
@@ -82,6 +92,13 @@ export default function ForumPostEditForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
+
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        setError('Server returned an unexpected response. Please try again or contact support.')
+        setSubmitting(false)
+        return
+      }
 
       const data = await res.json()
 
@@ -146,7 +163,11 @@ export default function ForumPostEditForm({
       {isRichText ? (
         <div style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
-            Supports raster image uploads and YouTube/Vimeo URL embeds. Local video upload is not supported.
+            Supports headings, formatting, links, image uploads, and YouTube/Vimeo embeds.
+            {' '}
+            {localVideoUploadEnabled
+              ? 'Local MP4/WebM uploads are enabled (maximum 50 MB and 3 per post). Select a local video to remove it.'
+              : 'New local videos are disabled. Existing local-video nodes remain visible and removable.'}
           </p>
           <TipTapEditor
             content={initialEditorContent}
@@ -156,6 +177,9 @@ export default function ForumPostEditForm({
               setRichText(text)
             }}
             placeholder="Write your forum post..."
+            localVideoUploadEnabled={localVideoUploadEnabled}
+            localVideoApprovedOrigin={localVideoApprovedOrigin}
+            onVideoUploadStateChange={setVideoUploadPending}
           />
         </div>
       ) : (
@@ -192,7 +216,7 @@ export default function ForumPostEditForm({
       <div style={{ display: 'flex', gap: 8 }}>
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || videoUploadPending}
           style={{
             background: '#3b82f6',
             color: '#fff',
@@ -201,14 +225,26 @@ export default function ForumPostEditForm({
             padding: '10px 24px',
             fontWeight: 600,
             fontSize: 14,
-            cursor: submitting ? 'wait' : 'pointer',
-            opacity: submitting ? 0.6 : 1,
+            cursor: submitting
+              ? 'wait'
+              : videoUploadPending
+                ? 'not-allowed'
+                : 'pointer',
+            opacity: submitting || videoUploadPending ? 0.6 : 1,
           }}
         >
-          {submitting ? 'Saving...' : 'Save Changes'}
+          {videoUploadPending
+            ? 'Finishing Video Upload…'
+            : submitting
+              ? 'Saving...'
+              : 'Save Changes'}
         </button>
         <Link
           href={`/forum/posts/${postId}`}
+          aria-disabled={videoUploadPending}
+          onClick={(event) => {
+            if (videoUploadPending) event.preventDefault()
+          }}
           style={{
             background: 'transparent',
             color: '#64748b',
@@ -219,6 +255,8 @@ export default function ForumPostEditForm({
             fontSize: 14,
             textDecoration: 'none',
             display: 'inline-block',
+            pointerEvents: videoUploadPending ? 'none' : 'auto',
+            opacity: videoUploadPending ? 0.6 : 1,
           }}
         >
           Cancel

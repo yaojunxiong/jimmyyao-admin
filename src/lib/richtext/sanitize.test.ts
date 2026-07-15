@@ -2,6 +2,13 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { sanitizeHtml } from './sanitize'
 
+const approvedVideoUrl =
+  'https://ycjuceortcduakxscfes.supabase.co/storage/v1/object/public/forum-videos/videos/7de72fea-5bb0-4b8a-a8ca-06ec2ffec947/2026/07/4a54a2f2-d662-4b5f-9fef-8bfbe8ebbd2b.mp4'
+
+const productionOrigin = 'https://ycjuceortcduakxscfes.supabase.co'
+process.env.NEXT_PUBLIC_SUPABASE_URL = productionOrigin
+process.env.VERCEL_ENV = 'test'
+
 describe('sanitizeHtml', () => {
   it('allows basic formatting tags', async () => {
     const result = await sanitizeHtml('<p>Hello <strong>world</strong></p>')
@@ -218,5 +225,82 @@ describe('sanitizeHtml', () => {
     assert.match(result.html, /src="https:\/\/example\.com\/img\.jpg"/)
     assert.doesNotMatch(result.html, /onerror/i)
     assert.doesNotMatch(result.html, /onload/i)
+  })
+
+  it('canonicalizes an approved finalized local video for safe HTML5 playback', async () => {
+    const result = await sanitizeHtml(
+      `<p>Lesson</p><video src="${approvedVideoUrl}" autoplay loop muted poster="https://evil.test/poster.jpg"><source src="https://evil.test/movie.mp4"></video>`,
+    )
+    assert.equal(result.videos.length, 1)
+    assert.equal(result.videos[0].publicUrl, approvedVideoUrl)
+    assert.match(result.html, /<video/)
+    assert.match(result.html, /controls=""/)
+    assert.match(result.html, /preload="metadata"/)
+    assert.match(result.html, /playsinline=""/)
+    assert.match(result.html, /data-forum-video=""/)
+    assert.match(result.html, /class="forum-local-video"/)
+    assert.ok(result.html.includes(
+      `<video src="${approvedVideoUrl}" controls="" preload="metadata" playsinline="" data-forum-video="" class="forum-local-video"></video>`,
+    ))
+    assert.doesNotMatch(result.html, /autoplay|loop|muted|poster|<source/i)
+  })
+
+  it('rejects a local video from any other Storage origin or reservation path', async () => {
+    const badOrigin = approvedVideoUrl.replace(
+      'ycjuceortcduakxscfes.supabase.co',
+      'ycjuceortcduakxscfes.supabase.co.evil.test',
+    )
+    const reserved = approvedVideoUrl.replace('/videos/', '/reservations/')
+    const result = await sanitizeHtml(
+      `<p>Keep this text</p><video src="${badOrigin}" controls></video><video src="${reserved}" controls></video>`,
+    )
+    assert.equal(result.videos.length, 0)
+    assert.doesNotMatch(result.html, /<video/i)
+    assert.match(result.html, /Keep this text/)
+  })
+
+  it('strips event handlers and scripting attributes from an approved local video', async () => {
+    const result = await sanitizeHtml(
+      `<p>Safe</p><video src="${approvedVideoUrl}" onplay="alert(1)" onclick="evil()" autoplay></video>`,
+    )
+    assert.equal(result.videos.length, 1)
+    assert.doesNotMatch(result.html, /onplay|onclick|autoplay/i)
+  })
+
+  it('accepts an alternate configured project and rejects origin mismatches', async () => {
+    const alternateOrigin = 'https://abcdefghijklmnopqrst.supabase.co'
+    const alternateVideoUrl = approvedVideoUrl.replace(
+      productionOrigin,
+      alternateOrigin,
+    )
+    process.env.NEXT_PUBLIC_SUPABASE_URL = alternateOrigin
+    try {
+      const accepted = await sanitizeHtml(
+        `<p>Alternate</p><video src="${alternateVideoUrl}"></video>`,
+      )
+      const rejected = await sanitizeHtml(
+        `<p>Production mismatch</p><video src="${approvedVideoUrl}"></video>`,
+      )
+      assert.equal(accepted.videos.length, 1)
+      assert.equal(rejected.videos.length, 0)
+      assert.doesNotMatch(rejected.html, /<video/i)
+    } finally {
+      process.env.NEXT_PUBLIC_SUPABASE_URL = productionOrigin
+    }
+  })
+
+  it('fails closed for local video when origin config is missing without breaking other rich media', async () => {
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL
+    try {
+      const result = await sanitizeHtml(
+        `<p>Keep</p><img src="https://example.com/image.png"><video src="${approvedVideoUrl}"></video><iframe src="https://youtu.be/dQw4w9WgXcQ"></iframe>`,
+      )
+      assert.equal(result.videos.length, 0)
+      assert.doesNotMatch(result.html, /<video/i)
+      assert.match(result.html, /<img/)
+      assert.match(result.html, /youtube-nocookie[.]com/)
+    } finally {
+      process.env.NEXT_PUBLIC_SUPABASE_URL = productionOrigin
+    }
   })
 })

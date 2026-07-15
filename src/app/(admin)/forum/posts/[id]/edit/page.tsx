@@ -2,8 +2,12 @@ import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getConfiguredSupabaseProjectOrigin } from '@/lib/supabase/config'
 import { checkAdminAccess } from '@/lib/admin-auth'
-import { isRichTextFeatureEnabled } from '@/lib/richtext/server-feature-flag'
+import {
+  isLocalVideoUploadFeatureEnabled,
+  isRichTextFeatureEnabled,
+} from '@/lib/richtext/server-feature-flag'
 import ForumPostEditForm from './forum-post-edit-form'
 
 export const dynamic = 'force-dynamic'
@@ -83,7 +87,13 @@ export default async function EditForumPostPage({
     )
   }
 
-  const richTextEnabled = await isRichTextFeatureEnabled(supabase, adminCheck.role)
+  const [richTextEnabled, localVideoFlagEnabled] = await Promise.all([
+    isRichTextFeatureEnabled(supabase, adminCheck.role),
+    isLocalVideoUploadFeatureEnabled(supabase, adminCheck.role),
+  ])
+  const localVideoApprovedOrigin = getConfiguredSupabaseProjectOrigin()
+  const localVideoUploadEnabled = localVideoFlagEnabled
+    && Boolean(localVideoApprovedOrigin)
 
   const initialRichJson = post.content_format === 'rich_text' ? post.content_json : null
   const initialRichHtml = post.content_format === 'rich_text' ? post.content_html : ''
@@ -123,6 +133,8 @@ export default async function EditForumPostPage({
         initialRichHtml={initialRichHtml}
         initialRichJson={initialRichJson}
         categories={[...CATEGORIES]}
+        localVideoUploadEnabled={localVideoUploadEnabled}
+        localVideoApprovedOrigin={localVideoApprovedOrigin}
       />
     </>
   )
