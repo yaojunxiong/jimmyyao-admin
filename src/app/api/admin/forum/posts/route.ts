@@ -44,10 +44,9 @@ export async function POST(request: NextRequest) {
       localVideoUploadEnabled,
     })
     if (!prepared.ok) {
-      return Response.json(
-        { ok: false, error: prepared.error },
-        { status: prepared.status || 400 },
-      )
+      const body: Record<string, unknown> = { ok: false, error: prepared.error }
+      if (prepared.correlationId) body.correlationId = prepared.correlationId
+      return Response.json(body, { status: prepared.status || 400 })
     }
 
     if (

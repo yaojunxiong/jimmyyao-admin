@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { MAX_RICH_HTML_LENGTH, sanitizeHtml } from './sanitize'
 import {
   collectTipTapLocalVideos,
@@ -39,7 +40,7 @@ export type PreparedPostInput = {
 
 type PrepareResult =
   | { ok: true; value: PreparedPostInput }
-  | { ok: false; error: string; status?: 400 | 403 }
+  | { ok: false; error: string; status?: 400 | 403; correlationId?: string }
 
 type PreparePostInputOptions = {
   localVideoUploadEnabled?: boolean
@@ -68,6 +69,8 @@ export async function preparePostInput(
   input: PostInput,
   options: PreparePostInputOptions = {},
 ): Promise<PrepareResult> {
+  const correlationId = randomUUID()
+
   const title = typeof input.title === 'string' ? input.title.trim() : ''
   if (title.length < 2 || title.length > 120) {
     return { ok: false, error: 'Title must be between 2 and 120 characters' }
@@ -140,8 +143,34 @@ export async function preparePostInput(
   let sanitized: Awaited<ReturnType<typeof sanitizeHtml>>
   try {
     sanitized = await sanitizeHtml(input.content_html)
-  } catch {
-    return { ok: false, error: 'Rich-text HTML is invalid or too large' }
+  } catch (err) {
+    const html = typeof input.content_html === 'string' ? input.content_html : ''
+    const redactedPrefix = html
+      .slice(0, 300)
+      .replace(/https?:\/\/[^\s"'>]+/g, '<<URL>>')
+    const hasVideo = /<video[\s>]/i.test(html)
+    const hasSource = /<source[\s>]/i.test(html)
+    const errorName = err instanceof Error ? err.name : typeof err
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    const stackFirst = err instanceof Error
+      ? (err.stack || '').split('\n').slice(0, 6).join('\n')
+      : ''
+
+    console.error(JSON.stringify({
+      correlationId,
+      event: 'sanitizeHtml_failure',
+      errorName,
+      errorMessage,
+      stack: stackFirst,
+      contentHtmlLength: html.length,
+      hasVideoTag: hasVideo,
+      hasSourceTag: hasSource,
+      htmlPrefix: redactedPrefix,
+      nodeVersion: process.version,
+      environment: process.env.VERCEL_ENV || 'unknown',
+    }))
+
+    return { ok: false, error: 'Rich-text HTML is invalid or too large', correlationId }
   }
 
   if (sanitized.html.length > MAX_RICH_HTML_LENGTH) {
