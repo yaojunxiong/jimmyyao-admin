@@ -194,4 +194,35 @@ describe('preparePostInput', () => {
       content_html: `<p>Lesson video</p><video src="${reservedUrl}"></video>`,
     })).ok, false)
   })
+
+  it('survives non-ASCII text after a local video element (jsdom ESM regression)', async () => {
+    const result = await preparePostInput(
+      {
+        ...base,
+        body: 'Video with Japanese text',
+        content_format: 'rich_text',
+        content_json: {
+          type: 'doc',
+          content: [
+            {
+              type: 'localVideo',
+              attrs: { src: approvedVideoUrl, mimeType: 'video/mp4' },
+            },
+            { type: 'paragraph', content: [{ type: 'text', text: '画期的な機能です' }] },
+          ],
+        },
+        content_html:
+          `<video src="${approvedVideoUrl}" controls="" preload="metadata" playsinline="" data-forum-video="" class="forum-local-video"></video><p>画期的な機能です</p>`,
+      },
+      { localVideoUploadEnabled: true },
+    )
+
+    assert.equal(result.ok, true)
+    if (result.ok) {
+      assert.match(result.value.contentHtml || '', /data-forum-video/)
+      assert.match(result.value.contentHtml || '', /forum-local-video/)
+      assert.match(result.value.contentHtml || '', /画期的な機能です/)
+      assert.equal(result.value.forumVideoPaths.length, 1)
+    }
+  })
 })
