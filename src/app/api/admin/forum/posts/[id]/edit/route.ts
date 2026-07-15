@@ -3,7 +3,12 @@ import { cookies } from 'next/headers'
 import { NextRequest } from 'next/server'
 import { checkAdminAccess } from '@/lib/admin-auth'
 import { preparePostInput } from '@/lib/richtext/post-input'
-import { isRichTextFeatureEnabled } from '@/lib/richtext/server-feature-flag'
+import {
+  isLocalVideoUploadFeatureEnabled,
+  isRichTextFeatureEnabled,
+} from '@/lib/richtext/server-feature-flag'
+import { collectTipTapLocalVideos } from '@/lib/richtext/video-upload'
+import { validateFinalizedVideoPaths } from '@/lib/richtext/video-upload-server'
 import { createClient } from '@/lib/supabase/server'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -40,17 +45,77 @@ export async function PUT(
       return Response.json({ ok: false, error: 'Invalid request body' }, { status: 400 })
     }
 
-    const prepared = await preparePostInput(requestBody)
-    if (!prepared.ok) {
-      return Response.json({ ok: false, error: prepared.error }, { status: 400 })
+    const supabase = createClient(cookieStore)
+    const [richTextEnabled, localVideoUploadEnabled, existingPostResult] = await Promise.all([
+      isRichTextFeatureEnabled(supabase, adminCheck.role),
+      isLocalVideoUploadFeatureEnabled(supabase, adminCheck.role),
+      supabase
+        .from('forum_posts')
+        .select('content_json')
+        .eq('id', id)
+        .maybeSingle(),
+    ])
+
+    if (existingPostResult.error) {
+      return Response.json(
+        { ok: false, error: 'Unable to validate the existing forum post' },
+        { status: 500 },
+      )
+    }
+    if (!existingPostResult.data) {
+      return Response.json({ ok: false, error: 'Post not found' }, { status: 404 })
     }
 
-    const supabase = createClient(cookieStore)
+    const existingVideos = collectTipTapLocalVideos(
+      existingPostResult.data.content_json,
+    )
+    if (!existingVideos.ok) {
+      return Response.json(
+        { ok: false, error: 'Unable to validate existing local videos' },
+        { status: 500 },
+      )
+    }
+
+    const prepared = await preparePostInput(requestBody, {
+      localVideoUploadEnabled,
+      existingForumVideoPaths: existingVideos.videos.map(
+        (video) => video.objectPath,
+      ),
+    })
+    if (!prepared.ok) {
+      return Response.json(
+        { ok: false, error: prepared.error },
+        { status: prepared.status || 400 },
+      )
+    }
+
     if (
       prepared.value.contentFormat === 'rich_text'
-      && !(await isRichTextFeatureEnabled(supabase, adminCheck.role))
+      && !richTextEnabled
     ) {
       return Response.json({ ok: false, error: 'Rich-text editing is disabled' }, { status: 403 })
+    }
+
+    const videoValidation = await validateFinalizedVideoPaths(
+      prepared.value.forumVideoPaths,
+      async (objectPaths) => {
+        const { data: videos, error: videoError } = await supabase
+          .from('forum_video_uploads')
+          .select('object_path')
+          .eq('status', 'finalized')
+          .in('object_path', [...objectPaths])
+
+        return {
+          objectPaths: (videos || []).map((video) => video.object_path as string),
+          error: Boolean(videoError),
+        }
+      },
+    )
+    if (!videoValidation.ok) {
+      return Response.json(
+        { ok: false, error: videoValidation.error },
+        { status: videoValidation.status },
+      )
     }
 
     const { data, error } = await supabase.rpc('admin_update_forum_post', {

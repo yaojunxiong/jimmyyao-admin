@@ -8,8 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/lib/richtext/*.test.ts",
-    "test:watch": "tsx --test --watch src/lib/richtext/*.test.ts"
+    "test": "node --import tsx --test src/lib/richtext/*.test.ts",
+    "test:watch": "node --import tsx --test --watch src/lib/richtext/*.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

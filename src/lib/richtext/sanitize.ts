@@ -1,10 +1,15 @@
 import { normalizeVideoEmbedUrl, type SafeVideo } from './video-url'
+import {
+  parseForumVideoPublicUrl,
+  type ForumVideoReference,
+} from './video-upload'
 
 export const MAX_RICH_HTML_LENGTH = 250_000
 
 type SanitizeResult = {
   html: string
   text: string
+  videos: ForumVideoReference[]
 }
 
 const ALLOWED_TAGS = [
@@ -16,17 +21,23 @@ const ALLOWED_TAGS = [
   'div', 'span', 'iframe',
   'figure', 'figcaption',
   'sup', 'sub',
+  'video',
 ]
 
 const ALLOWED_ATTRIBUTES = [
   'href', 'target', 'rel', 'title',
   'src', 'alt', 'width', 'height', 'loading', 'decoding',
   'class',
-  'data-youtube-video', 'data-vimeo-video',
+  'data-youtube-video', 'data-vimeo-video', 'data-forum-video',
   'allow', 'allowfullscreen', 'frameborder', 'referrerpolicy',
+  'controls', 'preload', 'playsinline',
 ]
 
-const ALLOWED_CLASSES = new Set(['video-embed', 'video-embed-frame'])
+const ALLOWED_CLASSES = new Set([
+  'video-embed',
+  'video-embed-frame',
+  'forum-local-video',
+])
 
 function isSafeLink(rawUrl: string): boolean {
   try {
@@ -113,6 +124,32 @@ function unwrapEmptyVideoWrappers(body: HTMLElement) {
   }
 }
 
+function canonicalizeLocalVideos(body: HTMLElement): ForumVideoReference[] {
+  const videos: ForumVideoReference[] = []
+
+  for (const element of Array.from(body.querySelectorAll('video'))) {
+    const video = parseForumVideoPublicUrl(element.getAttribute('src') || '')
+    if (!video) {
+      element.remove()
+      continue
+    }
+
+    for (const attribute of Array.from(element.attributes)) {
+      element.removeAttribute(attribute.name)
+    }
+    element.replaceChildren()
+    element.setAttribute('src', video.publicUrl)
+    element.setAttribute('controls', '')
+    element.setAttribute('preload', 'metadata')
+    element.setAttribute('playsinline', '')
+    element.setAttribute('data-forum-video', '')
+    element.setAttribute('class', 'forum-local-video')
+    videos.push(video)
+  }
+
+  return videos
+}
+
 function extractText(body: HTMLElement): string {
   const clone = body.cloneNode(true) as HTMLElement
   const blockSelector = 'p,h1,h2,h3,h4,h5,h6,div,blockquote,li,pre,br,hr'
@@ -179,6 +216,8 @@ export async function sanitizeHtml(dirtyHtml: string): Promise<SanitizeResult> {
       }
     }
 
+    const videos = canonicalizeLocalVideos(body)
+
     for (const iframe of Array.from(body.querySelectorAll('iframe'))) {
       const video = normalizeVideoEmbedUrl(iframe.getAttribute('src') || '')
       if (!video) {
@@ -196,6 +235,7 @@ export async function sanitizeHtml(dirtyHtml: string): Promise<SanitizeResult> {
     return {
       html: body.innerHTML,
       text: extractText(body),
+      videos,
     }
   } finally {
     dom.window.close()

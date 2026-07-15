@@ -3,7 +3,11 @@ import { cookies } from 'next/headers'
 import { NextRequest } from 'next/server'
 import { checkAdminAccess } from '@/lib/admin-auth'
 import { preparePostInput } from '@/lib/richtext/post-input'
-import { isRichTextFeatureEnabled } from '@/lib/richtext/server-feature-flag'
+import {
+  isLocalVideoUploadFeatureEnabled,
+  isRichTextFeatureEnabled,
+} from '@/lib/richtext/server-feature-flag'
+import { validateFinalizedVideoPaths } from '@/lib/richtext/video-upload-server'
 import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
@@ -30,17 +34,49 @@ export async function POST(request: NextRequest) {
       return Response.json({ ok: false, error: 'Invalid request body' }, { status: 400 })
     }
 
-    const prepared = await preparePostInput(requestBody)
+    const supabase = createClient(cookieStore)
+    const [richTextEnabled, localVideoUploadEnabled] = await Promise.all([
+      isRichTextFeatureEnabled(supabase, adminCheck.role),
+      isLocalVideoUploadFeatureEnabled(supabase, adminCheck.role),
+    ])
+
+    const prepared = await preparePostInput(requestBody, {
+      localVideoUploadEnabled,
+    })
     if (!prepared.ok) {
-      return Response.json({ ok: false, error: prepared.error }, { status: 400 })
+      return Response.json(
+        { ok: false, error: prepared.error },
+        { status: prepared.status || 400 },
+      )
     }
 
-    const supabase = createClient(cookieStore)
     if (
       prepared.value.contentFormat === 'rich_text'
-      && !(await isRichTextFeatureEnabled(supabase, adminCheck.role))
+      && !richTextEnabled
     ) {
       return Response.json({ ok: false, error: 'Rich-text editing is disabled' }, { status: 403 })
+    }
+
+    const videoValidation = await validateFinalizedVideoPaths(
+      prepared.value.forumVideoPaths,
+      async (objectPaths) => {
+        const { data: videos, error: videoError } = await supabase
+          .from('forum_video_uploads')
+          .select('object_path')
+          .eq('status', 'finalized')
+          .in('object_path', [...objectPaths])
+
+        return {
+          objectPaths: (videos || []).map((video) => video.object_path as string),
+          error: Boolean(videoError),
+        }
+      },
+    )
+    if (!videoValidation.ok) {
+      return Response.json(
+        { ok: false, error: videoValidation.error },
+        { status: videoValidation.status },
+      )
     }
 
     const { data, error } = await supabase.rpc('admin_create_forum_post', {

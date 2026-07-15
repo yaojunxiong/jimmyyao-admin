@@ -1,6 +1,7 @@
 export type RichTextTarget = 'admin' | 'member'
 
 const FEATURE_FLAG_KEY = 'forum_rich_text'
+const LOCAL_VIDEO_FEATURE_FLAG_KEY = 'forum_local_video_upload'
 
 type FeatureFlagValue = {
   enabled_for: RichTextTarget[]
@@ -35,9 +36,16 @@ export function isRichTextEnabledFor(
   return false
 }
 
+export function isLocalVideoUploadEnabledFor(
+  flag: FeatureFlagValue,
+  role: string,
+): boolean {
+  return role === 'admin' && flag.enabled_for.includes('admin')
+}
+
 // Member authoring deliberately remains plain text. Adding "member" to a flag
 // does not bypass the admin page/API authorization checks or alter the public
 // forum's existing member composer; that would require a separate feature.
 
-export { FEATURE_FLAG_KEY, DEFAULT_FLAG }
+export { FEATURE_FLAG_KEY, LOCAL_VIDEO_FEATURE_FLAG_KEY, DEFAULT_FLAG }
 export type { FeatureFlagValue }

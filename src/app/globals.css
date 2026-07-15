@@ -295,6 +295,15 @@ a {
   border-radius: 8px;
   margin: 12px 0;
 }
+.rich-text-content video[data-forum-video] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 12px 0;
+  border-radius: 8px;
+  background: #0f172a;
+}
 .rich-text-content [data-youtube-video],
 .rich-text-content [data-vimeo-video] {
   position: relative;

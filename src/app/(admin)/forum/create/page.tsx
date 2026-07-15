@@ -2,8 +2,12 @@ import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getConfiguredSupabaseProjectOrigin } from '@/lib/supabase/config'
 import { checkAdminAccess } from '@/lib/admin-auth'
-import { isRichTextFeatureEnabled } from '@/lib/richtext/server-feature-flag'
+import {
+  isLocalVideoUploadFeatureEnabled,
+  isRichTextFeatureEnabled,
+} from '@/lib/richtext/server-feature-flag'
 import ForumPostForm from './forum-post-form'
 
 export const dynamic = 'force-dynamic'
@@ -36,7 +40,13 @@ export default async function CreateForumPostPage() {
   }
 
   const supabase = createClient(cookieStore)
-  const richTextEnabled = await isRichTextFeatureEnabled(supabase, adminCheck.role)
+  const [richTextEnabled, localVideoFlagEnabled] = await Promise.all([
+    isRichTextFeatureEnabled(supabase, adminCheck.role),
+    isLocalVideoUploadFeatureEnabled(supabase, adminCheck.role),
+  ])
+  const localVideoApprovedOrigin = getConfiguredSupabaseProjectOrigin()
+  const localVideoUploadEnabled = localVideoFlagEnabled
+    && Boolean(localVideoApprovedOrigin)
 
   return (
     <>
@@ -55,6 +65,8 @@ export default async function CreateForumPostPage() {
         categories={[...CATEGORIES]}
         adminEmail={adminCheck.userEmail}
         richTextEnabled={richTextEnabled}
+        localVideoUploadEnabled={localVideoUploadEnabled}
+        localVideoApprovedOrigin={localVideoApprovedOrigin}
       />
     </>
   )

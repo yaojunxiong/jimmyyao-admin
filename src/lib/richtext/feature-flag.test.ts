@@ -1,6 +1,13 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseFeatureFlag, isRichTextEnabledFor, DEFAULT_FLAG } from './feature-flag'
+import {
+  DEFAULT_FLAG,
+  FEATURE_FLAG_KEY,
+  LOCAL_VIDEO_FEATURE_FLAG_KEY,
+  isLocalVideoUploadEnabledFor,
+  isRichTextEnabledFor,
+  parseFeatureFlag,
+} from './feature-flag'
 
 describe('parseFeatureFlag', () => {
   it('fails closed when flag data is unavailable or malformed', () => {
@@ -64,5 +71,38 @@ describe('isRichTextEnabledFor', () => {
 
   it('returns false for unknown roles', () => {
     assert.equal(isRichTextEnabledFor({ enabled_for: ['admin'] }, 'vip'), false)
+  })
+})
+
+describe('independent local-video feature flag', () => {
+  it('uses a separate key from the rich-text feature', () => {
+    assert.equal(FEATURE_FLAG_KEY, 'forum_rich_text')
+    assert.equal(LOCAL_VIDEO_FEATURE_FLAG_KEY, 'forum_local_video_upload')
+    assert.notEqual(LOCAL_VIDEO_FEATURE_FLAG_KEY, FEATURE_FLAG_KEY)
+  })
+
+  it('does not enable local video merely because rich text is enabled', () => {
+    const richTextFlag = parseFeatureFlag({ enabled_for: ['admin'] })
+    const videoFlag = parseFeatureFlag({ enabled_for: [] })
+
+    assert.equal(isRichTextEnabledFor(richTextFlag, 'admin'), true)
+    assert.equal(isLocalVideoUploadEnabledFor(videoFlag, 'admin'), false)
+  })
+
+  it('permits only administrators when the video flag enables admin', () => {
+    const flag = parseFeatureFlag({ enabled_for: ['admin', 'member'] })
+
+    assert.equal(isLocalVideoUploadEnabledFor(flag, 'admin'), true)
+    assert.equal(isLocalVideoUploadEnabledFor(flag, 'member'), false)
+    assert.equal(isLocalVideoUploadEnabledFor(flag, 'anon'), false)
+    assert.equal(isLocalVideoUploadEnabledFor(flag, ''), false)
+  })
+
+  it('fails closed for missing or malformed video flag data', () => {
+    assert.equal(isLocalVideoUploadEnabledFor(parseFeatureFlag(null), 'admin'), false)
+    assert.equal(isLocalVideoUploadEnabledFor(
+      parseFeatureFlag({ enabled_for: 'admin' }),
+      'admin',
+    ), false)
   })
 })
